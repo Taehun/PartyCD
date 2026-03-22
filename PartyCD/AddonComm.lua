@@ -33,10 +33,14 @@ function RCT:InitComm()
     end)
 end
 
--- 메시지 전송 채널 결정
+-- FIX-5: 메시지 전송 채널 결정 (INSTANCE_CHAT 지원)
 local function GetChannel()
-    if IsInRaid() then
+    if IsInRaid(LE_PARTY_CATEGORY_INSTANCE) then
+        return "INSTANCE_CHAT"
+    elseif IsInRaid() then
         return "RAID"
+    elseif IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
+        return "INSTANCE_CHAT"
     elseif IsInGroup() then
         return "PARTY"
     end
@@ -119,8 +123,9 @@ function RCT:HandleSyncRequest(senderName)
         delay = delay + 0.3
         local sid = spellID
         C_Timer.After(delay, function()
-            local cdInfo = C_Spell.GetSpellCooldown(sid)
-            if cdInfo and cdInfo.startTime and cdInfo.startTime > 0 and not cdInfo.isOnGCD then
+            local ok, cdInfo = pcall(C_Spell.GetSpellCooldown, sid)
+            if ok and cdInfo and cdInfo.startTime and cdInfo.duration
+               and cdInfo.startTime > 0 and not cdInfo.isOnGCD then
                 local remaining = (cdInfo.startTime + cdInfo.duration) - GetTime()
                 if remaining > 0 then
                     RCT:SendCooldownMessage(sid, remaining, cdInfo.duration)

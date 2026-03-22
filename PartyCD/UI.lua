@@ -174,9 +174,9 @@ local function RefreshContainerUI(container, entries, showSetting)
             bar:SetValue(1)
         end
 
-        -- 아이콘
-        local spellInfo = C_Spell.GetSpellInfo(entry.spellID)
-        if spellInfo and spellInfo.iconID then
+        -- FIX-3: 아이콘 (pcall 보호)
+        local ok, spellInfo = pcall(C_Spell.GetSpellInfo, entry.spellID)
+        if ok and spellInfo and spellInfo.iconID then
             bar.icon:SetTexture(spellInfo.iconID)
         end
 

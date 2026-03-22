@@ -108,9 +108,11 @@ function RCT:OnSpellUpdateCooldown()
     if not classSpells then return end
 
     for spellID, data in pairs(classSpells) do
-        local cdInfo = C_Spell.GetSpellCooldown(spellID)
-        if cdInfo and cdInfo.startTime and cdInfo.startTime > 0 then
-            -- 12.0.0+ isOnGCD 필드로 GCD 정확히 필터링
+        -- FIX-3: pcall로 C_Spell 호출 보호
+        local ok, cdInfo = pcall(C_Spell.GetSpellCooldown, spellID)
+        if ok and cdInfo and cdInfo.startTime and cdInfo.duration
+           and cdInfo.startTime > 0 and cdInfo.duration > 0 then
+            -- 12.0.0+ isOnGCD 필드로 GCD 필터링 (nil이면 GCD 아님으로 처리)
             if not cdInfo.isOnGCD then
                 local key = playerName .. ":" .. spellID
                 RCT.cooldowns[key] = {
@@ -172,8 +174,9 @@ end
 function RCT:BroadcastMyCooldown(spellID)
     if not RCT.SendCooldownMessage then return end
 
-    local cdInfo = C_Spell.GetSpellCooldown(spellID)
-    if cdInfo and cdInfo.startTime and cdInfo.startTime > 0 and not cdInfo.isOnGCD then
+    local ok, cdInfo = pcall(C_Spell.GetSpellCooldown, spellID)
+    if ok and cdInfo and cdInfo.startTime and cdInfo.duration
+       and cdInfo.startTime > 0 and not cdInfo.isOnGCD then
         local remaining = (cdInfo.startTime + cdInfo.duration) - GetTime()
         if remaining > 0 then
             RCT:SendCooldownMessage(spellID, remaining, cdInfo.duration)

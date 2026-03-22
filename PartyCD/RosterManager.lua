@@ -15,9 +15,11 @@ end
 function RCT:InitRoster()
     RCT:RegisterEvent("GROUP_ROSTER_UPDATE", RCT.UpdateRoster)
     RCT:RegisterEvent("PLAYER_ENTERING_WORLD", function(self)
+        -- FIX-1: ADDON_LOADED 시점에는 유닛 데이터 미준비, 지연 후 갱신
         C_Timer.After(1, function() RCT:UpdateRoster() end)
     end)
-    RCT:UpdateRoster()
+    -- FIX-1: 초기 UpdateRoster 제거 (ADDON_LOADED 시점에 유닛 데이터 없음)
+    -- PLAYER_ENTERING_WORLD 또는 GROUP_ROSTER_UPDATE에서 처리
 end
 
 function RCT:UpdateRoster()
