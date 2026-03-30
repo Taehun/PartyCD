@@ -2,24 +2,25 @@
 local addonName, RCT = ...
 
 -- 스킬 데이터 테이블
--- key = spellID, value = { name, class, category, cooldown(초) }
+-- key = spellID, value = { name, class, category, cooldown(초), auraSpellID(생존기 버프ID) }
 -- Wowhead 기준 검증 완료 (12.0.1)
 RCT.SpellData = {
     -- ===== 힐러 생존기 =====
+    -- auraSpellID: 대상에게 적용되는 버프 spellID (UNIT_AURA 감지용)
 
     -- 사제 (Priest)
-    [47788]  = { name = "Guardian Spirit",           class = "PRIEST",       category = "SURVIVAL",  cooldown = 180 },
-    [33206]  = { name = "Pain Suppression",          class = "PRIEST",       category = "SURVIVAL",  cooldown = 180 },
+    [47788]  = { name = "Guardian Spirit",           class = "PRIEST",       category = "SURVIVAL",  cooldown = 180, auraSpellID = 47788 },
+    [33206]  = { name = "Pain Suppression",          class = "PRIEST",       category = "SURVIVAL",  cooldown = 180, auraSpellID = 33206 },
 
     -- 드루이드 (Druid)
-    [102342] = { name = "Ironbark",                  class = "DRUID",        category = "SURVIVAL",  cooldown = 90 },
+    [102342] = { name = "Ironbark",                  class = "DRUID",        category = "SURVIVAL",  cooldown = 90,  auraSpellID = 102342 },
 
     -- 성기사 (Paladin)
-    [6940]   = { name = "Blessing of Sacrifice",     class = "PALADIN",      category = "SURVIVAL",  cooldown = 120 },
+    [6940]   = { name = "Blessing of Sacrifice",     class = "PALADIN",      category = "SURVIVAL",  cooldown = 120, auraSpellID = 6940 },
     [633]    = { name = "Lay on Hands",              class = "PALADIN",      category = "SURVIVAL",  cooldown = 420 },
 
     -- 수도사 (Monk)
-    [116849] = { name = "Life Cocoon",               class = "MONK",         category = "SURVIVAL",  cooldown = 120 },
+    [116849] = { name = "Life Cocoon",               class = "MONK",         category = "SURVIVAL",  cooldown = 120, auraSpellID = 116849 },
 
     -- 주술사 (Shaman)
     [98008]  = { name = "Spirit Link Totem",         class = "SHAMAN",       category = "SURVIVAL",  cooldown = 180 },
@@ -87,4 +88,12 @@ for spellID, data in pairs(RCT.SpellData) do
         RCT.SpellsByClass[data.class] = {}
     end
     RCT.SpellsByClass[data.class][spellID] = data
+end
+
+-- 버프 auraSpellID → 원본 spellID 역인덱스 (UNIT_AURA 감지용)
+RCT.AuraToSpell = {}
+for spellID, data in pairs(RCT.SpellData) do
+    if data.auraSpellID then
+        RCT.AuraToSpell[data.auraSpellID] = spellID
+    end
 end

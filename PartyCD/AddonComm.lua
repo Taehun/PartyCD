@@ -57,21 +57,22 @@ function RCT:SendCooldownMessage(spellID, remaining, totalCD)
     lastSendTimes[spellID] = now
 
     local msg = string.format("%s:%d:%.1f:%.1f", MSG_COOLDOWN, spellID, remaining, totalCD)
-    C_ChatInfo.SendAddonMessage(ADDON_PREFIX, msg, channel)
+    -- 인스턴스 내 애드온 통신 차단 시 오류 방지
+    pcall(C_ChatInfo.SendAddonMessage, ADDON_PREFIX, msg, channel)
 end
 
 -- 동기화 요청
 function RCT:RequestSync()
     local channel = GetChannel()
     if not channel then return end
-    C_ChatInfo.SendAddonMessage(ADDON_PREFIX, MSG_SYNC, channel)
+    pcall(C_ChatInfo.SendAddonMessage, ADDON_PREFIX, MSG_SYNC, channel)
 end
 
 -- Hello 메시지
 function RCT:SendHello()
     local channel = GetChannel()
     if not channel then return end
-    C_ChatInfo.SendAddonMessage(ADDON_PREFIX, MSG_HELLO .. ":" .. RCT.version, channel)
+    pcall(C_ChatInfo.SendAddonMessage, ADDON_PREFIX, MSG_HELLO .. ":" .. RCT.version, channel)
 end
 
 -- 수신 메시지 처리
