@@ -12,6 +12,5 @@ Locales/koKR.lua
 SpellData.lua
 RosterManager.lua
 CooldownTracker.lua
-AddonComm.lua
 UI.lua
 Core.lua

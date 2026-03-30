@@ -67,14 +67,10 @@ function RCT:OnSpellcastSucceeded(unitTarget, castGUID, spellID, castBarID)
         if RCT.OnCooldownUpdate then
             RCT:OnCooldownUpdate(playerName, spellID)
         end
-
-        C_Timer.After(0.2, function()
-            RCT:BroadcastMyCooldown(spellID)
-        end)
         return
     end
 
-    -- 다른 플레이어: spellID가 secret value일 수 있으므로 pcall 보호
+    -- 다른 플레이어: pcall로 방어적 보호 유지
     local ok, spellData = pcall(function() return RCT.SpellData[spellID] end)
     if not ok or not spellData then return end
 
@@ -85,12 +81,6 @@ function RCT:OnSpellcastSucceeded(unitTarget, castGUID, spellID, castBarID)
     if not RCT.roster[name] then return end
 
     local key = name .. ":" .. spellID
-    local existing = RCT.cooldowns[key]
-
-    -- 애드온 통신으로 받은 데이터가 있으면 덮어쓰지 않음 (더 정확)
-    if existing and existing.source == "addon" and existing.expires > GetTime() then
-        return
-    end
 
     local now = GetTime()
     RCT.cooldowns[key] = {
@@ -238,26 +228,6 @@ function RCT:OnSpellUpdateCooldown()
     end
 end
 
--- 애드온 통신으로 받은 쿨타임 데이터 적용
-function RCT:ApplyAddonCooldown(senderName, spellID, remaining, totalCD)
-    local key = senderName .. ":" .. spellID
-
-    RCT.cooldowns[key] = {
-        startTime = GetTime() - (totalCD - remaining),
-        expires = GetTime() + remaining,
-        duration = totalCD,
-        source = "addon",
-    }
-
-    if RCT.roster[senderName] then
-        RCT.roster[senderName].hasAddon = true
-    end
-
-    if RCT.OnCooldownUpdate then
-        RCT:OnCooldownUpdate(senderName, spellID)
-    end
-end
-
 -- 주기적 업데이트
 local expiredKeys = {}
 function RCT:OnTrackerUpdate()
@@ -290,19 +260,3 @@ function RCT:GetCooldownRemaining(playerName, spellID)
     return remaining, data.duration
 end
 
--- 본인 쿨타임 브로드캐스트
-function RCT:BroadcastMyCooldown(spellID)
-    if not RCT.SendCooldownMessage then return end
-    if not (IsInGroup() or IsInRaid()) then return end
-
-    pcall(function()
-        local cdInfo = C_Spell.GetSpellCooldown(spellID)
-        if cdInfo and cdInfo.startTime and cdInfo.duration
-           and cdInfo.startTime > 0 and not cdInfo.isOnGCD then
-            local remaining = (cdInfo.startTime + cdInfo.duration) - GetTime()
-            if remaining > 0 then
-                RCT:SendCooldownMessage(spellID, remaining, cdInfo.duration)
-            end
-        end
-    end)
-end

@@ -83,7 +83,6 @@ function RCT:Init()
     -- FIX-4: 각 모듈을 pcall로 보호하여 하나 실패해도 나머지 실행
     SafeInit("Roster", function() RCT:InitRoster() end)
     SafeInit("Tracker", function() RCT:InitTracker() end)
-    SafeInit("Comm", function() RCT:InitComm() end)
     SafeInit("UI", function() RCT:InitUI() end)
 
     -- 슬래시 커맨드

@@ -253,7 +253,6 @@ local function CollectSurvivalEntries()
                 remaining = remaining,
                 duration = duration,
                 startTime = cdData and cdData.startTime or nil,
-                hasAddon = memberData.hasAddon,
             }
         end
     end
@@ -276,7 +275,6 @@ local function CollectInterruptEntries()
                 remaining = remaining,
                 duration = duration,
                 startTime = cdData and cdData.startTime or nil,
-                hasAddon = memberData.hasAddon,
             }
         end
     end

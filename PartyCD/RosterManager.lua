@@ -23,14 +23,6 @@ function RCT:InitRoster()
 end
 
 function RCT:UpdateRoster()
-    -- hasAddon 상태 보존
-    local prevAddonStatus = {}
-    for name, data in pairs(RCT.roster) do
-        if data.hasAddon then
-            prevAddonStatus[name] = true
-        end
-    end
-
     wipe(RCT.roster)
     RCT.mySubgroup = 0
 
@@ -51,13 +43,6 @@ function RCT:UpdateRoster()
             RCT:AddUnitToRoster(unit, -1)
         end
         RCT.mySubgroup = 1
-    end
-
-    -- hasAddon 상태 복원
-    for name, data in pairs(RCT.roster) do
-        if prevAddonStatus[name] then
-            data.hasAddon = true
-        end
     end
 
     -- UI 갱신 트리거
@@ -91,7 +76,6 @@ function RCT:AddUnitToRoster(unit, raidIndex)
         role = role,
         subgroup = subgroup,
         online = UnitIsConnected(unit),
-        hasAddon = false,
     }
 end
 
