@@ -55,9 +55,10 @@ function RCT:OnSpellcastSucceeded(unitTarget, castGUID, spellID, castBarID)
         local playerName = UnitName("player")
         local key = playerName .. ":" .. spellID
 
+        local now = GetTime()
         RCT.cooldowns[key] = {
-            startTime = GetTime(),
-            expires = GetTime() + spellData.cooldown,
+            startTime = now,
+            expires = now + spellData.cooldown,
             duration = spellData.cooldown,
             source = "local",
         }
@@ -90,9 +91,10 @@ function RCT:OnSpellcastSucceeded(unitTarget, castGUID, spellID, castBarID)
         return
     end
 
+    local now = GetTime()
     RCT.cooldowns[key] = {
-        startTime = GetTime(),
-        expires = GetTime() + spellData.cooldown,
+        startTime = now,
+        expires = now + spellData.cooldown,
         duration = spellData.cooldown,
         source = "local",
     }
@@ -150,12 +152,18 @@ function RCT:ApplyAddonCooldown(senderName, spellID, remaining, totalCD)
 end
 
 -- 주기적 업데이트
+local expiredKeys = {}
 function RCT:OnTrackerUpdate()
     local now = GetTime()
+    -- pairs() 순회 중 nil 할당은 정의되지 않은 동작이므로 별도 수집 후 제거
+    wipe(expiredKeys)
     for key, data in pairs(RCT.cooldowns) do
         if data.expires <= now then
-            RCT.cooldowns[key] = nil
+            expiredKeys[#expiredKeys + 1] = key
         end
+    end
+    for _, key in ipairs(expiredKeys) do
+        RCT.cooldowns[key] = nil
     end
 
     if RCT.OnFrameUpdate then

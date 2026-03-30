@@ -127,7 +127,6 @@ function RCT:HandleSlashCommand(msg)
         RCT.debug = not RCT.debug
         print("|cff00ff00[PartyCD]|r Debug: " .. (RCT.debug and "ON" or "OFF"))
         if RCT.debug then
-            print("  roster count: " .. (RCT.roster and #RCT.roster or "nil"))
             local count = 0
             if RCT.roster then
                 for _ in pairs(RCT.roster) do count = count + 1 end
