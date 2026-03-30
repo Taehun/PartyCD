@@ -94,6 +94,13 @@ function RCT:Init()
 
     local L = RCT.L
     print(string.format(L.ADDON_LOADED, RCT.version))
+
+    -- FIX: 이미 그룹에 있는 상태에서 로드 시 지연 초기화
+    C_Timer.After(2, function()
+        if (IsInGroup() or IsInRaid()) and RCT.UpdateRoster then
+            RCT:UpdateRoster()
+        end
+    end)
 end
 
 -- 슬래시 커맨드 처리

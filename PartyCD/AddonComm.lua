@@ -123,14 +123,16 @@ function RCT:HandleSyncRequest(senderName)
         delay = delay + 0.3
         local sid = spellID
         C_Timer.After(delay, function()
-            local ok, cdInfo = pcall(C_Spell.GetSpellCooldown, sid)
-            if ok and cdInfo and cdInfo.startTime and cdInfo.duration
-               and cdInfo.startTime > 0 and not cdInfo.isOnGCD then
-                local remaining = (cdInfo.startTime + cdInfo.duration) - GetTime()
-                if remaining > 0 then
-                    RCT:SendCooldownMessage(sid, remaining, cdInfo.duration)
+            pcall(function()
+                local cdInfo = C_Spell.GetSpellCooldown(sid)
+                if cdInfo and cdInfo.startTime and cdInfo.duration
+                   and cdInfo.startTime > 0 and not cdInfo.isOnGCD then
+                    local remaining = (cdInfo.startTime + cdInfo.duration) - GetTime()
+                    if remaining > 0 then
+                        RCT:SendCooldownMessage(sid, remaining, cdInfo.duration)
+                    end
                 end
-            end
+            end)
         end)
     end
 end

@@ -95,12 +95,22 @@ function RCT:AddUnitToRoster(unit, raidIndex)
     }
 end
 
--- 힐러 목록 반환
+-- 힐러 목록 반환 (역할 미지정 시 클래스 기반 폴백)
 function RCT:GetHealers()
     local healers = {}
     for name, data in pairs(RCT.roster) do
-        if data.role == "HEALER" and data.online then
-            healers[name] = data
+        if data.online then
+            if data.role == "HEALER" then
+                healers[name] = data
+            elseif data.role == "NONE" and RCT.SpellsByClass[data.class] then
+                -- 역할 미지정이지만 생존기 스펠이 있는 클래스면 포함
+                for _, spell in pairs(RCT.SpellsByClass[data.class]) do
+                    if spell.category == "SURVIVAL" then
+                        healers[name] = data
+                        break
+                    end
+                end
+            end
         end
     end
     return healers
@@ -124,8 +134,8 @@ function RCT:GetMemberInfo(name)
     return RCT.roster[NormalizeName(name)]
 end
 
--- 유닛의 추적 대상 스킬 목록 반환
-function RCT:GetTrackedSpellsForUnit(name)
+-- 유닛의 추적 대상 스킬 목록 반환 (category 지정 시 해당 카테고리만)
+function RCT:GetTrackedSpellsForUnit(name, category)
     local member = RCT.roster[name]
     if not member then return {} end
 
@@ -134,10 +144,16 @@ function RCT:GetTrackedSpellsForUnit(name)
 
     local result = {}
     for spellID, data in pairs(classSpells) do
-        if member.role == "HEALER" and data.category == "SURVIVAL" then
-            result[spellID] = data
-        elseif member.role ~= "HEALER" and data.category == "INTERRUPT" then
-            result[spellID] = data
+        if category then
+            if data.category == category then
+                result[spellID] = data
+            end
+        else
+            if member.role == "HEALER" and data.category == "SURVIVAL" then
+                result[spellID] = data
+            elseif member.role ~= "HEALER" and data.category == "INTERRUPT" then
+                result[spellID] = data
+            end
         end
     end
     return result

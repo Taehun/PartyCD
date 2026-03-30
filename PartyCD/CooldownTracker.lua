@@ -47,7 +47,7 @@ end
 -- 12.0.0 Secret Values: 보스전/M+/PvP 중 다른 플레이어의 spellID가
 -- secret value로 변환되어 비교/인덱싱 시 Lua 에러 발생 가능
 -- → pcall로 보호하여 에러 방지, 이 경우 애드온 통신으로 대체됨
-function RCT:OnSpellcastSucceeded(unitTarget, castGUID, spellID)
+function RCT:OnSpellcastSucceeded(unitTarget, castGUID, spellID, castBarID)
     -- 본인 시전은 secret이 아님 → 안전하게 처리
     if UnitIsUnit(unitTarget, "player") then
         local spellData = RCT.SpellData[spellID]
@@ -56,6 +56,7 @@ function RCT:OnSpellcastSucceeded(unitTarget, castGUID, spellID)
         local key = playerName .. ":" .. spellID
 
         RCT.cooldowns[key] = {
+            startTime = GetTime(),
             expires = GetTime() + spellData.cooldown,
             duration = spellData.cooldown,
             source = "local",
@@ -90,6 +91,7 @@ function RCT:OnSpellcastSucceeded(unitTarget, castGUID, spellID)
     end
 
     RCT.cooldowns[key] = {
+        startTime = GetTime(),
         expires = GetTime() + spellData.cooldown,
         duration = spellData.cooldown,
         source = "local",
@@ -108,20 +110,22 @@ function RCT:OnSpellUpdateCooldown()
     if not classSpells then return end
 
     for spellID, data in pairs(classSpells) do
-        -- FIX-3: pcall로 C_Spell 호출 보호
-        local ok, cdInfo = pcall(C_Spell.GetSpellCooldown, spellID)
-        if ok and cdInfo and cdInfo.startTime and cdInfo.duration
-           and cdInfo.startTime > 0 and cdInfo.duration > 0 then
-            -- 12.0.0+ isOnGCD 필드로 GCD 필터링 (nil이면 GCD 아님으로 처리)
-            if not cdInfo.isOnGCD then
-                local key = playerName .. ":" .. spellID
-                RCT.cooldowns[key] = {
-                    expires = cdInfo.startTime + cdInfo.duration,
-                    duration = cdInfo.duration,
-                    source = "self",
-                }
+        -- FIX-3: pcall로 전체 처리 블록 보호 (Secret Values 대응)
+        pcall(function()
+            local cdInfo = C_Spell.GetSpellCooldown(spellID)
+            if cdInfo and cdInfo.startTime and cdInfo.duration
+               and cdInfo.startTime > 0 and cdInfo.duration > 0 then
+                if not cdInfo.isOnGCD then
+                    local key = playerName .. ":" .. spellID
+                    RCT.cooldowns[key] = {
+                        startTime = cdInfo.startTime,
+                        expires = cdInfo.startTime + cdInfo.duration,
+                        duration = cdInfo.duration,
+                        source = "self",
+                    }
+                end
             end
-        end
+        end)
     end
 end
 
@@ -130,6 +134,7 @@ function RCT:ApplyAddonCooldown(senderName, spellID, remaining, totalCD)
     local key = senderName .. ":" .. spellID
 
     RCT.cooldowns[key] = {
+        startTime = GetTime() - (totalCD - remaining),
         expires = GetTime() + remaining,
         duration = totalCD,
         source = "addon",
@@ -173,13 +178,16 @@ end
 -- 본인 쿨타임 브로드캐스트
 function RCT:BroadcastMyCooldown(spellID)
     if not RCT.SendCooldownMessage then return end
+    if not (IsInGroup() or IsInRaid()) then return end
 
-    local ok, cdInfo = pcall(C_Spell.GetSpellCooldown, spellID)
-    if ok and cdInfo and cdInfo.startTime and cdInfo.duration
-       and cdInfo.startTime > 0 and not cdInfo.isOnGCD then
-        local remaining = (cdInfo.startTime + cdInfo.duration) - GetTime()
-        if remaining > 0 then
-            RCT:SendCooldownMessage(spellID, remaining, cdInfo.duration)
+    pcall(function()
+        local cdInfo = C_Spell.GetSpellCooldown(spellID)
+        if cdInfo and cdInfo.startTime and cdInfo.duration
+           and cdInfo.startTime > 0 and not cdInfo.isOnGCD then
+            local remaining = (cdInfo.startTime + cdInfo.duration) - GetTime()
+            if remaining > 0 then
+                RCT:SendCooldownMessage(spellID, remaining, cdInfo.duration)
+            end
         end
-    end
+    end)
 end
