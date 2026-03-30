@@ -24,6 +24,3 @@ L.CMD_INTERRUPT       = "  /pcd interrupt - 차단기 표시 토글"
 -- UI
 L.TITLE_SURVIVAL      = "생존기 쿨타임"
 L.TITLE_INTERRUPT     = "차단기 쿨타임"
-L.READY               = "|cff00ff00준비|r"
-L.SEC_FORMAT          = "|cffff6600%.0f초|r"
-L.MIN_FORMAT          = "|cffff0000%d:%02d|r"

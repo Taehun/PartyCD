@@ -214,6 +214,7 @@ local function RefreshContainerUI(container, entries, showSetting)
         end
         if a.remaining == 0 then return true end
         if b.remaining == 0 then return false end
+        if a.remaining == b.remaining then return a.name < b.name end
         return a.remaining < b.remaining
     end)
 
@@ -288,8 +289,18 @@ function RCT:RefreshUI()
     RefreshContainerUI(interruptFrame, CollectInterruptEntries(), RCT.db.showInterrupt)
 end
 
+-- 쿨다운 이벤트 시 즉시 리빌드 대신 dirty 플래그 설정 (0.1초 주기 배치 갱신)
+local refreshPending = false
+function RCT:RequestRefresh()
+    refreshPending = true
+end
+
 -- 경량 업데이트 (시간 텍스트 + 아이콘 상태만, 스윕은 CooldownFrameTemplate이 처리)
 function RCT:UpdateBars()
+    if refreshPending then
+        refreshPending = false
+        RCT:RefreshUI()
+    end
     RCT:UpdateContainerIcons(survivalFrame)
     RCT:UpdateContainerIcons(interruptFrame)
 end
@@ -363,7 +374,7 @@ function RCT:InitUI()
     end
 
     -- 콜백 등록
-    RCT.OnCooldownUpdate = RCT.RefreshUI
+    RCT.OnCooldownUpdate = RCT.RequestRefresh
     RCT.OnFrameUpdate = RCT.UpdateBars
     RCT.OnRosterUpdate = RCT.RefreshUI
 

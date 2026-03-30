@@ -64,9 +64,14 @@ RCT.SpellData = {
     -- 성기사 (Paladin)
     [96231]  = { name = "Rebuke",                    class = "PALADIN",      category = "INTERRUPT", cooldown = 15 },
 
-    -- 흑마법사 (Warlock)
-    [19647]  = { name = "Spell Lock",                class = "WARLOCK",      category = "INTERRUPT", cooldown = 24 },
-    [89766]  = { name = "Axe Toss",                  class = "WARLOCK",      category = "INTERRUPT", cooldown = 30 },
+    -- 사제 (Priest) - 암흑
+    [15487]  = { name = "Silence",                   class = "PRIEST",       category = "INTERRUPT", cooldown = 45 },
+
+    -- 사냥꾼 (Hunter) - 생존
+    [187707] = { name = "Muzzle",                    class = "HUNTER",       category = "INTERRUPT", cooldown = 15 },
+
+    -- 드루이드 (Druid) - 조화
+    [78675]  = { name = "Solar Beam",                class = "DRUID",        category = "INTERRUPT", cooldown = 60 },
 }
 
 -- spellID로 빠르게 카테고리별 조회를 위한 역인덱스

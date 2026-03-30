@@ -22,7 +22,4 @@ RCT.L = {
     -- UI
     TITLE_SURVIVAL      = "Survival Cooldowns",
     TITLE_INTERRUPT     = "Interrupt Cooldowns",
-    READY               = "|cff00ff00Ready|r",
-    SEC_FORMAT          = "|cffff6600%.0fs|r",
-    MIN_FORMAT          = "|cffff0000%d:%02d|r",
 }

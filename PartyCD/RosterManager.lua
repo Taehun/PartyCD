@@ -2,7 +2,7 @@
 local addonName, RCT = ...
 
 -- 공대원 데이터 저장소
--- key = shortName (Ambiguate 처리됨), value = { unit, name, class, role, subgroup, online, hasAddon }
+-- key = shortName (Ambiguate 처리됨), value = { unit, name, class, role, subgroup, online }
 RCT.roster = {}
 RCT.mySubgroup = 0
 
