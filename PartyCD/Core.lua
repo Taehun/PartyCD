@@ -112,6 +112,8 @@ function RCT:HandleSlashCommand(msg)
         print(RCT.db.locked and L.FRAME_LOCKED or L.FRAME_UNLOCKED)
     elseif msg == "reset" then
         RCT:ResetPositions()
+        if RCT.UpdateRoster then RCT:UpdateRoster() end
+        if RCT.RefreshUI then RCT:RefreshUI() end
         print(L.POSITION_RESET)
     elseif msg == "survival" then
         RCT.db.showSurvival = not RCT.db.showSurvival
@@ -126,15 +128,58 @@ function RCT:HandleSlashCommand(msg)
         RCT.debug = not RCT.debug
         print("|cff00ff00[PartyCD]|r Debug: " .. (RCT.debug and "ON" or "OFF"))
         if RCT.debug then
-            local count = 0
-            if RCT.roster then
-                for _ in pairs(RCT.roster) do count = count + 1 end
-            end
-            print("  roster members: " .. count)
-            print("  mySubgroup: " .. tostring(RCT.mySubgroup))
+            -- 그룹 상태
             print("  IsInGroup: " .. tostring(IsInGroup()))
             print("  IsInRaid: " .. tostring(IsInRaid()))
             print("  GetNumGroupMembers: " .. tostring(GetNumGroupMembers()))
+            print("  mySubgroup: " .. tostring(RCT.mySubgroup))
+
+            -- 설정값
+            print("  showSurvival: " .. tostring(RCT.db.showSurvival))
+            print("  showInterrupt: " .. tostring(RCT.db.showInterrupt))
+            print("  locked: " .. tostring(RCT.db.locked))
+
+            -- 프레임 상태
+            local sf = _G["PCD_SurvivalFrame"]
+            local intf = _G["PCD_InterruptFrame"]
+            print("  survivalFrame: " .. (sf and (sf:IsShown() and "SHOWN" or "HIDDEN") or "|cffff0000NOT CREATED|r"))
+            print("  interruptFrame: " .. (intf and (intf:IsShown() and "SHOWN" or "HIDDEN") or "|cffff0000NOT CREATED|r"))
+
+            -- 화면 크기 + 프레임 좌표
+            print("  screenSize: " .. GetScreenWidth() .. "x" .. GetScreenHeight())
+            if sf and sf:GetPoint() then
+                local p, _, rp, x, y = sf:GetPoint()
+                print("  survivalPos: " .. tostring(p) .. "/" .. tostring(rp) .. " " .. tostring(x) .. "," .. tostring(y))
+            end
+            if intf and intf:GetPoint() then
+                local p, _, rp, x, y = intf:GetPoint()
+                print("  interruptPos: " .. tostring(p) .. "/" .. tostring(rp) .. " " .. tostring(x) .. "," .. tostring(y))
+            end
+
+            -- Roster 상세
+            local count = 0
+            if RCT.roster then
+                for name, data in pairs(RCT.roster) do
+                    count = count + 1
+                    print(string.format("  [%d] %s: class=%s role=%s sg=%s online=%s",
+                        count, name, tostring(data.class), tostring(data.role),
+                        tostring(data.subgroup), tostring(data.online)))
+                end
+            end
+            if count == 0 then
+                print("  |cffff0000roster: EMPTY|r")
+            end
+
+            -- Healers / Interrupters 수
+            local healerCount, intCount = 0, 0
+            if RCT.GetHealers then
+                for _ in pairs(RCT:GetHealers()) do healerCount = healerCount + 1 end
+            end
+            if RCT.GetPartyInterrupters then
+                for _ in pairs(RCT:GetPartyInterrupters()) do intCount = intCount + 1 end
+            end
+            print("  healers: " .. healerCount .. ", interrupters: " .. intCount)
+
             -- 강제 UI 갱신
             if RCT.UpdateRoster then RCT:UpdateRoster() end
             if RCT.RefreshUI then RCT:RefreshUI() end
@@ -150,15 +195,33 @@ function RCT:HandleSlashCommand(msg)
 end
 
 -- SetPoint 헬퍼 (key-value 테이블 → SetPoint 호출)
-function RCT:ApplyPoint(targetFrame, pointData)
+-- 화면 밖 좌표 감지 시 defaultY 위치로 리셋 (프레임별 기본 위치 구분)
+function RCT:ApplyPoint(targetFrame, pointData, defaultY)
     if not targetFrame or not pointData then return end
+
+    local x = pointData.x or 0
+    local y = pointData.y or 0
+    local screenW = GetScreenWidth()
+    local screenH = GetScreenHeight()
+
+    -- 프레임이 화면 영역 밖이면 기본 위치로 리셋
+    if x < -screenW or x > screenW or y < -screenH or y > screenH then
+        RCT:Debug("Frame out of bounds (" .. x .. "," .. y .. "), resetting")
+        x = 20
+        y = defaultY or -200
+        pointData.point = "TOPLEFT"
+        pointData.relPoint = "TOPLEFT"
+        pointData.x = x
+        pointData.y = y
+    end
+
     targetFrame:ClearAllPoints()
     targetFrame:SetPoint(
         pointData.point or "TOPLEFT",
         UIParent,
         pointData.relPoint or "TOPLEFT",
-        pointData.x or 0,
-        pointData.y or 0
+        x,
+        y
     )
 end
 

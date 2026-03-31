@@ -32,8 +32,8 @@ function RCT:UpdateRoster()
             RCT:AddUnitToRoster(unit, i)
             -- RT-2: UnitIsUnit으로 내 소그룹 확인 (크로스 렐름 안전)
             if UnitIsUnit(unit, "player") then
-                local _, _, subgroup = GetRaidRosterInfo(i)
-                RCT.mySubgroup = subgroup or 0
+                local ok, _, _, subgroup = pcall(GetRaidRosterInfo, i)
+                RCT.mySubgroup = (ok and subgroup) or 0
             end
         end
     elseif IsInGroup() then
@@ -63,8 +63,8 @@ function RCT:AddUnitToRoster(unit, raidIndex)
     local subgroup = 0
 
     if raidIndex and raidIndex > 0 then
-        local _, _, sg = GetRaidRosterInfo(raidIndex)
-        subgroup = sg or 0
+        local ok, _, _, sg = pcall(GetRaidRosterInfo, raidIndex)
+        subgroup = (ok and sg) or 0
     elseif raidIndex and raidIndex == -1 then
         subgroup = 1
     end

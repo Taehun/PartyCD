@@ -353,10 +353,10 @@ end
 function RCT:ResetPositions()
     if not survivalFrame or not interruptFrame then return end
     RCT.db.survivalPoint = { point = "TOPLEFT", relPoint = "TOPLEFT", x = 20, y = -200 }
-    RCT:ApplyPoint(survivalFrame, RCT.db.survivalPoint)
+    RCT:ApplyPoint(survivalFrame, RCT.db.survivalPoint, -200)
 
     RCT.db.interruptPoint = { point = "TOPLEFT", relPoint = "TOPLEFT", x = 20, y = -400 }
-    RCT:ApplyPoint(interruptFrame, RCT.db.interruptPoint)
+    RCT:ApplyPoint(interruptFrame, RCT.db.interruptPoint, -400)
 end
 
 -- UI 초기화
@@ -365,12 +365,12 @@ function RCT:InitUI()
     survivalFrame = RCT:CreateContainer("PCD_SurvivalFrame", L.TITLE_SURVIVAL)
     interruptFrame = RCT:CreateContainer("PCD_InterruptFrame", L.TITLE_INTERRUPT)
 
-    -- 저장된 위치 복원
+    -- 저장된 위치 복원 (프레임별 기본 Y 좌표 전달)
     if RCT.db.survivalPoint then
-        RCT:ApplyPoint(survivalFrame, RCT.db.survivalPoint)
+        RCT:ApplyPoint(survivalFrame, RCT.db.survivalPoint, -200)
     end
     if RCT.db.interruptPoint then
-        RCT:ApplyPoint(interruptFrame, RCT.db.interruptPoint)
+        RCT:ApplyPoint(interruptFrame, RCT.db.interruptPoint, -400)
     end
 
     -- 콜백 등록
