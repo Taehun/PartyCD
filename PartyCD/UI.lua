@@ -302,9 +302,16 @@ end
 
 -- UI 전체 갱신
 function RCT:RefreshUI()
-    if not survivalFrame or not interruptFrame then return end
-    RefreshContainerUI(survivalFrame, CollectSurvivalEntries(), RCT.db.showSurvival)
-    RefreshContainerUI(interruptFrame, CollectInterruptEntries(), RCT.db.showInterrupt)
+    if not survivalFrame or not interruptFrame then
+        RCT:Debug("RefreshUI: frames nil, survF=" .. tostring(survivalFrame) .. " intF=" .. tostring(interruptFrame))
+        return
+    end
+    local survEntries = CollectSurvivalEntries()
+    local intEntries = CollectInterruptEntries()
+    RCT:Debug("RefreshUI: survEntries=" .. #survEntries .. " intEntries=" .. #intEntries
+        .. " showSurv=" .. tostring(RCT.db.showSurvival) .. " showInt=" .. tostring(RCT.db.showInterrupt))
+    RefreshContainerUI(survivalFrame, survEntries, RCT.db.showSurvival)
+    RefreshContainerUI(interruptFrame, intEntries, RCT.db.showInterrupt)
 end
 
 -- 쿨다운 이벤트 시 즉시 리빌드 대신 dirty 플래그 설정 (0.1초 주기 배치 갱신)
@@ -396,15 +403,26 @@ function RCT:InitUI()
     RCT.OnFrameUpdate = RCT.UpdateBars
     RCT.OnRosterUpdate = RCT.RefreshUI
 
-    -- 초기에는 숨김 (roster 데이터 도착 후 표시)
-    survivalFrame:Hide()
-    interruptFrame:Hide()
+    -- 그룹 상태에 따라 초기 표시 결정
+    if IsInGroup() or IsInRaid() then
+        RCT:Debug("InitUI: already in group, scheduling refresh")
+    else
+        survivalFrame:Hide()
+        interruptFrame:Hide()
+    end
 
     -- 지연 RefreshUI: 이미 그룹에 있을 때를 대비
     C_Timer.After(2, function()
         if IsInGroup() or IsInRaid() then
+            RCT:Debug("InitUI timer: refreshing UI (in group)")
             RCT:RefreshUI()
         end
+    end)
+
+    -- GROUP_ROSTER_UPDATE 직접 처리 (OnRosterUpdate 콜백 미등록 대비)
+    RCT:RegisterEvent("GROUP_ROSTER_UPDATE", function()
+        RCT:Debug("UI GROUP_ROSTER_UPDATE: requesting refresh")
+        RCT:RequestRefresh()
     end)
 end
 

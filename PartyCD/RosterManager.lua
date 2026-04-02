@@ -45,6 +45,11 @@ function RCT:UpdateRoster()
         RCT.mySubgroup = 1
     end
 
+    -- 로스터 결과 디버그
+    local rosterCount = 0
+    for _ in pairs(RCT.roster) do rosterCount = rosterCount + 1 end
+    RCT:Debug("UpdateRoster: " .. rosterCount .. " members, inGroup=" .. tostring(IsInGroup()) .. " inRaid=" .. tostring(IsInRaid()))
+
     -- UI 갱신 트리거
     if RCT.OnRosterUpdate then
         RCT:OnRosterUpdate()

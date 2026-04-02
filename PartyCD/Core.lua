@@ -123,6 +123,25 @@ function RCT:HandleSlashCommand(msg)
         RCT.db.showInterrupt = not RCT.db.showInterrupt
         RCT:UpdateVisibility()
         print(RCT.db.showInterrupt and L.INTERRUPT_ON or L.INTERRUPT_OFF)
+    elseif msg == "show" then
+        -- 강제 표시: showSurvival/showInterrupt를 true로 설정하고 강제 갱신
+        RCT.db.showSurvival = true
+        RCT.db.showInterrupt = true
+        if RCT.UpdateRoster then RCT:UpdateRoster() end
+        if RCT.RefreshUI then RCT:RefreshUI() end
+        -- 프레임이 여전히 숨겨져 있으면 강제 Show
+        local sf = _G["PCD_SurvivalFrame"]
+        local intf = _G["PCD_InterruptFrame"]
+        if sf and not sf:IsShown() then
+            sf:SetSize(160, 36)
+            sf:Show()
+        end
+        if intf and not intf:IsShown() then
+            intf:SetSize(160, 36)
+            intf:Show()
+        end
+        print("|cff00ff00[PartyCD]|r Force show: survival=" .. (sf and (sf:IsShown() and "SHOWN" or "HIDDEN") or "nil")
+            .. " interrupt=" .. (intf and (intf:IsShown() and "SHOWN" or "HIDDEN") or "nil"))
     -- FIX-2: 디버그 모드
     elseif msg == "debug" then
         RCT.debug = not RCT.debug
@@ -138,6 +157,12 @@ function RCT:HandleSlashCommand(msg)
             print("  showSurvival: " .. tostring(RCT.db.showSurvival))
             print("  showInterrupt: " .. tostring(RCT.db.showInterrupt))
             print("  locked: " .. tostring(RCT.db.locked))
+            if not RCT.db.showSurvival then
+                print("  |cffff8800WARNING: showSurvival is OFF. Use /pcd survival to toggle or /pcd show to force|r")
+            end
+            if not RCT.db.showInterrupt then
+                print("  |cffff8800WARNING: showInterrupt is OFF. Use /pcd interrupt to toggle or /pcd show to force|r")
+            end
 
             -- Roster 상세
             local count = 0
@@ -195,6 +220,7 @@ function RCT:HandleSlashCommand(msg)
         print(L.CMD_RESET)
         print(L.CMD_SURVIVAL)
         print(L.CMD_INTERRUPT)
+        print("  /pcd show - Force show all frames")
         print("  /pcd debug - Toggle debug mode")
     end
 end
