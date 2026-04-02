@@ -139,23 +139,6 @@ function RCT:HandleSlashCommand(msg)
             print("  showInterrupt: " .. tostring(RCT.db.showInterrupt))
             print("  locked: " .. tostring(RCT.db.locked))
 
-            -- 프레임 상태
-            local sf = _G["PCD_SurvivalFrame"]
-            local intf = _G["PCD_InterruptFrame"]
-            print("  survivalFrame: " .. (sf and (sf:IsShown() and "SHOWN" or "HIDDEN") or "|cffff0000NOT CREATED|r"))
-            print("  interruptFrame: " .. (intf and (intf:IsShown() and "SHOWN" or "HIDDEN") or "|cffff0000NOT CREATED|r"))
-
-            -- 화면 크기 + 프레임 좌표
-            print("  screenSize: " .. GetScreenWidth() .. "x" .. GetScreenHeight())
-            if sf and sf:GetPoint() then
-                local p, _, rp, x, y = sf:GetPoint()
-                print("  survivalPos: " .. tostring(p) .. "/" .. tostring(rp) .. " " .. tostring(x) .. "," .. tostring(y))
-            end
-            if intf and intf:GetPoint() then
-                local p, _, rp, x, y = intf:GetPoint()
-                print("  interruptPos: " .. tostring(p) .. "/" .. tostring(rp) .. " " .. tostring(x) .. "," .. tostring(y))
-            end
-
             -- Roster 상세
             local count = 0
             if RCT.roster then
@@ -183,6 +166,28 @@ function RCT:HandleSlashCommand(msg)
             -- 강제 UI 갱신
             if RCT.UpdateRoster then RCT:UpdateRoster() end
             if RCT.RefreshUI then RCT:RefreshUI() end
+
+            -- 갱신 후 프레임 상태 + entry count
+            local sf = _G["PCD_SurvivalFrame"]
+            local intf = _G["PCD_InterruptFrame"]
+            print("  survivalFrame: " .. (sf and (sf:IsShown() and "SHOWN" or "HIDDEN") or "|cffff0000NOT CREATED|r"))
+            print("  interruptFrame: " .. (intf and (intf:IsShown() and "SHOWN" or "HIDDEN") or "|cffff0000NOT CREATED|r"))
+
+            if RCT.GetUIDebugInfo then
+                local info = RCT:GetUIDebugInfo()
+                print("  survivalEntries: " .. info.survivalEntryCount .. ", interruptEntries: " .. info.interruptEntryCount)
+            end
+
+            -- 화면 크기 + 프레임 좌표
+            print("  screenSize: " .. GetScreenWidth() .. "x" .. GetScreenHeight())
+            if sf and sf:GetPoint() then
+                local p, _, rp, x, y = sf:GetPoint()
+                print("  survivalPos: " .. tostring(p) .. "/" .. tostring(rp) .. " " .. tostring(x) .. "," .. tostring(y))
+            end
+            if intf and intf:GetPoint() then
+                local p, _, rp, x, y = intf:GetPoint()
+                print("  interruptPos: " .. tostring(p) .. "/" .. tostring(rp) .. " " .. tostring(x) .. "," .. tostring(y))
+            end
         end
     else
         print(L.CMD_HELP_HEADER)

@@ -24,3 +24,4 @@ L.CMD_INTERRUPT       = "  /pcd interrupt - 차단기 표시 토글"
 -- UI
 L.TITLE_SURVIVAL      = "생존기 쿨타임"
 L.TITLE_INTERRUPT     = "차단기 쿨타임"
+L.NO_COOLDOWNS        = "추적 중인 쿨타임 없음"

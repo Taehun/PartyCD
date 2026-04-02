@@ -79,15 +79,15 @@ function RCT:AddUnitToRoster(unit, raidIndex)
     }
 end
 
--- 힐러 목록 반환 (역할 미지정 시 클래스 기반 폴백)
+-- 생존기 보유 멤버 목록 반환 (힐러 + 생존기 스펠 보유 클래스 모두 포함)
 function RCT:GetHealers()
     local healers = {}
     for name, data in pairs(RCT.roster) do
         if data.online then
             if data.role == "HEALER" then
                 healers[name] = data
-            elseif data.role == "NONE" and RCT.SpellsByClass[data.class] then
-                -- 역할 미지정이지만 생존기 스펠이 있는 클래스면 포함
+            elseif RCT.SpellsByClass[data.class] then
+                -- 역할과 무관하게 생존기 스펠이 있는 클래스면 포함
                 for _, spell in pairs(RCT.SpellsByClass[data.class]) do
                     if spell.category == "SURVIVAL" then
                         healers[name] = data

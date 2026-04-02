@@ -22,4 +22,5 @@ RCT.L = {
     -- UI
     TITLE_SURVIVAL      = "Survival Cooldowns",
     TITLE_INTERRUPT     = "Interrupt Cooldowns",
+    NO_COOLDOWNS        = "No cooldowns tracked",
 }

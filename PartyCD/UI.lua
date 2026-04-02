@@ -138,6 +138,14 @@ function RCT:CreateContainer(name, title)
         RCT:SavePoint(self, dbKey)
     end)
 
+    -- 빈 상태 메시지
+    local statusText = f:CreateFontString(nil, "OVERLAY")
+    statusText:SetFont(FONT_PATH, 9, "OUTLINE")
+    statusText:SetPoint("TOPLEFT", 6, -(TITLE_HEIGHT + 4))
+    statusText:SetTextColor(0.5, 0.5, 0.5, 1)
+    statusText:Hide()
+    f.statusText = statusText
+
     f.icons = {}
     return f
 end
@@ -229,8 +237,18 @@ local function RefreshContainerUI(container, entries, showSetting)
     end
 
     if count == 0 then
-        container:Hide()
+        if IsInGroup() or IsInRaid() then
+            container:SetSize(160, TITLE_HEIGHT + 20)
+            container:Show()
+            if container.statusText then
+                container.statusText:SetText(RCT.L.NO_COOLDOWNS)
+                container.statusText:Show()
+            end
+        else
+            container:Hide()
+        end
     else
+        if container.statusText then container.statusText:Hide() end
         local totalWidth = 12 + count * CELL_WIDTH + math.max(0, count - 1) * ICON_SPACING
         local totalHeight = TITLE_HEIGHT + CELL_HEIGHT + 8
         container:SetSize(math.max(totalWidth, 60), totalHeight)
@@ -388,4 +406,16 @@ function RCT:InitUI()
             RCT:RefreshUI()
         end
     end)
+end
+
+-- 디버그 정보 반환 (Core.lua에서 호출)
+function RCT:GetUIDebugInfo()
+    local survEntries = CollectSurvivalEntries()
+    local intEntries = CollectInterruptEntries()
+    return {
+        survivalEntryCount = #survEntries,
+        interruptEntryCount = #intEntries,
+        survivalShown = survivalFrame and survivalFrame:IsShown() or false,
+        interruptShown = interruptFrame and interruptFrame:IsShown() or false,
+    }
 end
