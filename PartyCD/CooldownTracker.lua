@@ -9,6 +9,11 @@ RCT.cooldowns = {}
 local UPDATE_INTERVAL = 0.1
 local elapsed = 0
 
+-- WoW 12.0 Secret Values 안전 체크
+local function IsSecret(value)
+    return issecretvalue and issecretvalue(value) or false
+end
+
 -- RT-4: OnUpdate 프레임을 모듈 레벨에서 관리
 local updater
 
@@ -47,14 +52,23 @@ function RCT:InitTracker()
 end
 
 -- 다른 플레이어가 스킬 시전 시 (로컬 감지)
--- 12.0.0+: UNIT_SPELLCAST_SUCCEEDED의 spellID는 Secret Values가 아님 (정상 정수)
--- pcall은 방어적 프로그래밍으로 유지 (향후 API 변경 대비)
+-- 12.0.0+: spellID가 Secret Value일 수 있음 (M+/PvP/레이드 전투 중)
+-- Secret Value는 테이블 키로 사용 불가 → issecretvalue() 체크 필수
 function RCT:OnSpellcastSucceeded(unitTarget, castGUID, spellID, castBarID)
-    -- 이벤트 자체가 발생하는지 확인용 디버그 (tracked spell만 출력)
+    -- 12.0 Secret Values: spellID가 secret이면 테이블 조회 불가
+    if IsSecret(spellID) then
+        -- Secret spellID → 유닛의 클래스 기반으로 추론 시도
+        RCT:Debug("SPELLCAST: secret spellID from " .. tostring(unitTarget) .. ", trying class-based fallback")
+        RCT:HandleSecretSpellcast(unitTarget)
+        return
+    end
+
+    -- 이벤트 디버그 (tracked spell만 출력)
     if RCT.SpellData[spellID] then
-        RCT:Debug("EVENT UNIT_SPELLCAST_SUCCEEDED: unit=" .. tostring(unitTarget) .. " spellID=" .. tostring(spellID)
+        RCT:Debug("EVENT SPELLCAST: unit=" .. tostring(unitTarget) .. " spellID=" .. tostring(spellID)
             .. " (" .. RCT.SpellData[spellID].name .. ")")
     end
+
     -- 본인 시전은 secret이 아님 → 안전하게 처리
     if UnitIsUnit(unitTarget, "player") then
         local spellData = RCT.SpellData[spellID]
@@ -78,9 +92,9 @@ function RCT:OnSpellcastSucceeded(unitTarget, castGUID, spellID, castBarID)
         return
     end
 
-    -- 다른 플레이어: pcall로 방어적 보호 유지
-    local ok, spellData = pcall(function() return RCT.SpellData[spellID] end)
-    if not ok or not spellData then return end
+    -- 다른 플레이어: spellID는 정상 정수 (non-secret 경로)
+    local spellData = RCT.SpellData[spellID]
+    if not spellData then return end
 
     local name = UnitName(unitTarget)
     if not name then return end
@@ -108,6 +122,26 @@ function RCT:OnSpellcastSucceeded(unitTarget, castGUID, spellID, castBarID)
     end
 end
 
+-- Secret spellID 대체 감지: 클래스+역할 기반 쿨타임 추론
+-- M+/레이드 전투 중 spellID가 secret일 때 사용
+function RCT:HandleSecretSpellcast(unitTarget)
+    if not unitTarget then return end
+
+    local name = UnitName(unitTarget)
+    if not name then return end
+    name = Ambiguate(name, "short")
+
+    if UnitIsUnit(unitTarget, "player") then return end -- 본인은 항상 non-secret
+
+    local member = RCT.roster[name]
+    if not member then return end
+
+    -- 해당 클래스의 추적 스킬 중 현재 쿨다운이 아닌 것에 대해
+    -- C_Spell.GetSpellCooldown으로 직접 확인 (본인만 가능하므로 이 경로는 제한적)
+    -- 대신 UNIT_AURA와 UNIT_SPELLCAST_INTERRUPTED 감지에 의존
+    RCT:Debug("SECRET_FALLBACK: " .. name .. " (" .. tostring(member.class) .. ") - relying on AURA/INTERRUPT detection")
+end
+
 -- UNIT_AURA: 생존기 버프 감지 (UNIT_SPELLCAST_SUCCEEDED의 보완 감지 수단)
 -- 가시 범위 밖 힐러의 생존기 시전도 버프를 통해 감지 가능
 function RCT:OnUnitAura(unitTarget, updateInfo)
@@ -117,6 +151,9 @@ function RCT:OnUnitAura(unitTarget, updateInfo)
     for _, auraData in ipairs(updateInfo.addedAuras) do
         local auraSpellID = auraData.spellId
         if not auraSpellID then goto continue end
+
+        -- 12.0: auraSpellID도 secret일 수 있음
+        if IsSecret(auraSpellID) then goto continue end
 
         local originalSpellID = RCT.AuraToSpell[auraSpellID]
         if not originalSpellID then goto continue end
@@ -166,6 +203,7 @@ end
 -- 12.0.0+ interruptedBy GUID로 누가 차단했는지 확인 가능
 function RCT:OnSpellcastInterrupted(unitTarget, castGUID, spellID, interruptedBy, castBarID)
     if not interruptedBy then return end
+    if IsSecret(interruptedBy) then return end
     if not (IsInGroup() or IsInRaid()) then return end
 
     -- interruptedBy GUID를 파티/레이드 멤버와 매칭
@@ -226,7 +264,15 @@ function RCT:OnSpellUpdateCooldown()
         -- FIX-3: pcall로 전체 처리 블록 보호 (Secret Values 대응)
         pcall(function()
             local cdInfo = C_Spell.GetSpellCooldown(spellID)
-            if cdInfo and cdInfo.startTime and cdInfo.duration
+            if not cdInfo then return end
+
+            -- 12.0: startTime/duration이 Secret Value일 수 있음
+            if IsSecret(cdInfo.startTime) or IsSecret(cdInfo.duration) then
+                RCT:Debug("SPELL_UPDATE_CD: " .. data.name .. " returned SECRET values (encounter active)")
+                return
+            end
+
+            if cdInfo.startTime and cdInfo.duration
                and cdInfo.startTime > 0 and cdInfo.duration > 0 then
                 if not cdInfo.isOnGCD then
                     local key = playerName .. ":" .. spellID
