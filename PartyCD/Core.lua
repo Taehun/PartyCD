@@ -203,6 +203,17 @@ function RCT:HandleSlashCommand(msg)
                 print("  survivalEntries: " .. info.survivalEntryCount .. ", interruptEntries: " .. info.interruptEntryCount)
             end
 
+            -- 활성 쿨다운 목록
+            local cdCount = 0
+            if RCT.cooldowns then
+                for key, data in pairs(RCT.cooldowns) do
+                    cdCount = cdCount + 1
+                    local rem = data.expires - GetTime()
+                    print(string.format("  CD: %s remaining=%.1fs source=%s", key, rem, tostring(data.source)))
+                end
+            end
+            print("  activeCooldowns: " .. cdCount)
+
             -- 화면 크기 + 프레임 좌표
             print("  screenSize: " .. GetScreenWidth() .. "x" .. GetScreenHeight())
             if sf and sf:GetPoint() then

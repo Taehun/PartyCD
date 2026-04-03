@@ -17,6 +17,7 @@ function RCT:InitTracker()
     RCT:RegisterEvent("SPELL_UPDATE_COOLDOWN", RCT.OnSpellUpdateCooldown)
     RCT:RegisterEvent("UNIT_AURA", RCT.OnUnitAura)
     RCT:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED", RCT.OnSpellcastInterrupted)
+    RCT:Debug("Tracker: events registered (SPELLCAST/CD/AURA/INTERRUPT)")
 
     -- RT-4: OnUpdate 프레임 생성 (초기에는 숨김)
     updater = CreateFrame("Frame")
@@ -49,6 +50,11 @@ end
 -- 12.0.0+: UNIT_SPELLCAST_SUCCEEDED의 spellID는 Secret Values가 아님 (정상 정수)
 -- pcall은 방어적 프로그래밍으로 유지 (향후 API 변경 대비)
 function RCT:OnSpellcastSucceeded(unitTarget, castGUID, spellID, castBarID)
+    -- 이벤트 자체가 발생하는지 확인용 디버그 (tracked spell만 출력)
+    if RCT.SpellData[spellID] then
+        RCT:Debug("EVENT UNIT_SPELLCAST_SUCCEEDED: unit=" .. tostring(unitTarget) .. " spellID=" .. tostring(spellID)
+            .. " (" .. RCT.SpellData[spellID].name .. ")")
+    end
     -- 본인 시전은 secret이 아님 → 안전하게 처리
     if UnitIsUnit(unitTarget, "player") then
         local spellData = RCT.SpellData[spellID]
@@ -64,6 +70,8 @@ function RCT:OnSpellcastSucceeded(unitTarget, castGUID, spellID, castBarID)
             source = "local",
         }
 
+        RCT:Debug("SPELLCAST_SELF: " .. spellData.name .. " cd=" .. spellData.cooldown .. "s")
+
         if RCT.OnCooldownUpdate then
             RCT:OnCooldownUpdate(playerName, spellID)
         end
@@ -78,7 +86,10 @@ function RCT:OnSpellcastSucceeded(unitTarget, castGUID, spellID, castBarID)
     if not name then return end
     name = Ambiguate(name, "short")
 
-    if not RCT.roster[name] then return end
+    if not RCT.roster[name] then
+        RCT:Debug("SPELLCAST_OTHER: " .. name .. " NOT in roster, ignoring " .. spellData.name)
+        return
+    end
 
     local key = name .. ":" .. spellID
 
@@ -89,6 +100,8 @@ function RCT:OnSpellcastSucceeded(unitTarget, castGUID, spellID, castBarID)
         duration = spellData.cooldown,
         source = "local",
     }
+
+    RCT:Debug("SPELLCAST_OTHER: " .. name .. " used " .. spellData.name .. " cd=" .. spellData.cooldown .. "s")
 
     if RCT.OnCooldownUpdate then
         RCT:OnCooldownUpdate(name, spellID)
@@ -208,6 +221,7 @@ function RCT:OnSpellUpdateCooldown()
     local classSpells = RCT.SpellsByClass[classFile]
     if not classSpells then return end
 
+    local updated = false
     for spellID, data in pairs(classSpells) do
         -- FIX-3: pcall로 전체 처리 블록 보호 (Secret Values 대응)
         pcall(function()
@@ -216,15 +230,25 @@ function RCT:OnSpellUpdateCooldown()
                and cdInfo.startTime > 0 and cdInfo.duration > 0 then
                 if not cdInfo.isOnGCD then
                     local key = playerName .. ":" .. spellID
-                    RCT.cooldowns[key] = {
-                        startTime = cdInfo.startTime,
-                        expires = cdInfo.startTime + cdInfo.duration,
-                        duration = cdInfo.duration,
-                        source = "self",
-                    }
+                    local existing = RCT.cooldowns[key]
+                    -- 새 쿨다운이거나 startTime이 변경된 경우만 업데이트
+                    if not existing or existing.startTime ~= cdInfo.startTime then
+                        RCT.cooldowns[key] = {
+                            startTime = cdInfo.startTime,
+                            expires = cdInfo.startTime + cdInfo.duration,
+                            duration = cdInfo.duration,
+                            source = "self",
+                        }
+                        updated = true
+                        RCT:Debug("SPELL_UPDATE_CD: " .. data.name .. " cd=" .. cdInfo.duration .. "s")
+                    end
                 end
             end
         end)
+    end
+
+    if updated and RCT.OnCooldownUpdate then
+        RCT:OnCooldownUpdate(playerName, nil)
     end
 end
 
