@@ -306,8 +306,17 @@ function RCT:RefreshUI()
         RCT:Debug("RefreshUI: frames nil, survF=" .. tostring(survivalFrame) .. " intF=" .. tostring(interruptFrame))
         return
     end
-    local survEntries = CollectSurvivalEntries()
-    local intEntries = CollectInterruptEntries()
+    -- FIX-6: pcall로 에러 캡처 — 에러 발생 시에도 프레임 유지 + 에러 메시지 출력
+    local ok, survEntries = pcall(CollectSurvivalEntries)
+    if not ok then
+        RCT:Debug("|cffff0000CollectSurvivalEntries ERROR: " .. tostring(survEntries) .. "|r")
+        survEntries = {}
+    end
+    local ok2, intEntries = pcall(CollectInterruptEntries)
+    if not ok2 then
+        RCT:Debug("|cffff0000CollectInterruptEntries ERROR: " .. tostring(intEntries) .. "|r")
+        intEntries = {}
+    end
     RCT:Debug("RefreshUI: survEntries=" .. #survEntries .. " intEntries=" .. #intEntries
         .. " showSurv=" .. tostring(RCT.db.showSurvival) .. " showInt=" .. tostring(RCT.db.showInterrupt))
     RefreshContainerUI(survivalFrame, survEntries, RCT.db.showSurvival)

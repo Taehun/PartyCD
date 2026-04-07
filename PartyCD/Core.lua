@@ -148,7 +148,7 @@ function RCT:HandleSlashCommand(msg)
         end
         print("|cff00ff00[PartyCD]|r Force show: survival=" .. (sf and (sf:IsShown() and "SHOWN" or "HIDDEN") or "nil")
             .. " interrupt=" .. (intf and (intf:IsShown() and "SHOWN" or "HIDDEN") or "nil"))
-    -- FIX-5: 간결한 진단 출력
+    -- FIX-5: 간결한 진단 출력 (pcall로 에러 캡처)
     elseif msg == "diag" then
         print("|cff00ff00[PartyCD] Diagnostics:|r")
         print("  Group: " .. tostring(IsInGroup()) .. " Raid: " .. tostring(IsInRaid()) .. " Members: " .. GetNumGroupMembers() .. " mySG: " .. tostring(RCT.mySubgroup))
@@ -162,17 +162,36 @@ function RCT:HandleSlashCommand(msg)
         if RCT.GetHealers then for _ in pairs(RCT:GetHealers()) do healerCount = healerCount + 1 end end
         if RCT.GetPartyInterrupters then for _ in pairs(RCT:GetPartyInterrupters()) do intCount = intCount + 1 end end
         print("  Healers: " .. healerCount .. " Interrupters: " .. intCount)
-        if RCT.GetUIDebugInfo then
-            local info = RCT:GetUIDebugInfo()
-            print("  SurvEntries: " .. info.survivalEntryCount .. " IntEntries: " .. info.interruptEntryCount)
-            print("  SurvFrame: " .. (info.survivalShown and "SHOWN" or "HIDDEN") .. " IntFrame: " .. (info.interruptShown and "SHOWN" or "HIDDEN"))
-        end
+        -- 멤버별 추적 스펠 (에러 캡처)
         for name, data in pairs(RCT.roster) do
-            local sc, ic = 0, 0
-            for _ in pairs(RCT:GetTrackedSpellsForUnit(name, "SURVIVAL")) do sc = sc + 1 end
-            for _ in pairs(RCT:GetTrackedSpellsForUnit(name, "INTERRUPT")) do ic = ic + 1 end
-            if sc > 0 or ic > 0 then
-                print(string.format("    %s (%s/%s): surv=%d int=%d", name, data.class or "?", data.role or "?", sc, ic))
+            local ok2, err2 = pcall(function()
+                local sc, ic = 0, 0
+                for _ in pairs(RCT:GetTrackedSpellsForUnit(name, "SURVIVAL")) do sc = sc + 1 end
+                for _ in pairs(RCT:GetTrackedSpellsForUnit(name, "INTERRUPT")) do ic = ic + 1 end
+                print(string.format("    %s (%s/%s): surv=%d int=%d online=%s",
+                    name, tostring(data.class), tostring(data.role), sc, ic, tostring(data.online)))
+            end)
+            if not ok2 then
+                print(string.format("    |cffff0000%s: ERROR: %s|r", name, tostring(err2)))
+            end
+        end
+        -- 엔트리 수집 테스트 (에러 캡처)
+        if RCT.GetUIDebugInfo then
+            local ok, result = pcall(RCT.GetUIDebugInfo, RCT)
+            if ok then
+                print("  SurvEntries: " .. result.survivalEntryCount .. " IntEntries: " .. result.interruptEntryCount)
+                print("  SurvFrame: " .. (result.survivalShown and "SHOWN" or "HIDDEN") .. " IntFrame: " .. (result.interruptShown and "SHOWN" or "HIDDEN"))
+            else
+                print("  |cffff0000EntryCollection ERROR: " .. tostring(result) .. "|r")
+            end
+        end
+        -- RefreshUI 테스트
+        if RCT.RefreshUI then
+            local ok3, err3 = pcall(RCT.RefreshUI, RCT)
+            if not ok3 then
+                print("  |cffff0000RefreshUI ERROR: " .. tostring(err3) .. "|r")
+            else
+                print("  RefreshUI: OK")
             end
         end
     -- FIX-2: 디버그 모드
