@@ -94,7 +94,13 @@ function RCT:Init()
     local L = RCT.L
     print(string.format(L.ADDON_LOADED, RCT.version))
 
-    -- FIX: 이미 그룹에 있는 상태에서 로드 시 지연 초기화
+    -- FIX-5: 모든 모듈 초기화 완료 후 즉시 roster + UI refresh (콜백 보장됨)
+    if (IsInGroup() or IsInRaid()) and RCT.UpdateRoster then
+        RCT:Debug("Init: already in group, immediate UpdateRoster")
+        RCT:UpdateRoster()
+    end
+
+    -- 지연 재시도: 유닛 데이터가 아직 준비 안 됐을 경우 대비
     C_Timer.After(2, function()
         if (IsInGroup() or IsInRaid()) and RCT.UpdateRoster then
             RCT:UpdateRoster()
@@ -142,6 +148,33 @@ function RCT:HandleSlashCommand(msg)
         end
         print("|cff00ff00[PartyCD]|r Force show: survival=" .. (sf and (sf:IsShown() and "SHOWN" or "HIDDEN") or "nil")
             .. " interrupt=" .. (intf and (intf:IsShown() and "SHOWN" or "HIDDEN") or "nil"))
+    -- FIX-5: 간결한 진단 출력
+    elseif msg == "diag" then
+        print("|cff00ff00[PartyCD] Diagnostics:|r")
+        print("  Group: " .. tostring(IsInGroup()) .. " Raid: " .. tostring(IsInRaid()) .. " Members: " .. GetNumGroupMembers() .. " mySG: " .. tostring(RCT.mySubgroup))
+        local rosterCount, onlineCount = 0, 0
+        for _, data in pairs(RCT.roster) do
+            rosterCount = rosterCount + 1
+            if data.online then onlineCount = onlineCount + 1 end
+        end
+        print("  Roster: " .. rosterCount .. " total, " .. onlineCount .. " online")
+        local healerCount, intCount = 0, 0
+        if RCT.GetHealers then for _ in pairs(RCT:GetHealers()) do healerCount = healerCount + 1 end end
+        if RCT.GetPartyInterrupters then for _ in pairs(RCT:GetPartyInterrupters()) do intCount = intCount + 1 end end
+        print("  Healers: " .. healerCount .. " Interrupters: " .. intCount)
+        if RCT.GetUIDebugInfo then
+            local info = RCT:GetUIDebugInfo()
+            print("  SurvEntries: " .. info.survivalEntryCount .. " IntEntries: " .. info.interruptEntryCount)
+            print("  SurvFrame: " .. (info.survivalShown and "SHOWN" or "HIDDEN") .. " IntFrame: " .. (info.interruptShown and "SHOWN" or "HIDDEN"))
+        end
+        for name, data in pairs(RCT.roster) do
+            local sc, ic = 0, 0
+            for _ in pairs(RCT:GetTrackedSpellsForUnit(name, "SURVIVAL")) do sc = sc + 1 end
+            for _ in pairs(RCT:GetTrackedSpellsForUnit(name, "INTERRUPT")) do ic = ic + 1 end
+            if sc > 0 or ic > 0 then
+                print(string.format("    %s (%s/%s): surv=%d int=%d", name, data.class or "?", data.role or "?", sc, ic))
+            end
+        end
     -- FIX-2: 디버그 모드
     elseif msg == "debug" then
         RCT.debug = not RCT.debug

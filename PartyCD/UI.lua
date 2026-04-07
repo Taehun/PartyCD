@@ -411,13 +411,22 @@ function RCT:InitUI()
         interruptFrame:Hide()
     end
 
-    -- 지연 RefreshUI: 이미 그룹에 있을 때를 대비
-    C_Timer.After(2, function()
-        if IsInGroup() or IsInRaid() then
-            RCT:Debug("InitUI timer: refreshing UI (in group)")
-            RCT:RefreshUI()
-        end
-    end)
+    -- FIX-5: 다단계 지연 RefreshUI — 유닛 데이터 준비 타이밍 불확실성 대응
+    for _, delay in ipairs({0.5, 1.5, 3.0}) do
+        C_Timer.After(delay, function()
+            if (IsInGroup() or IsInRaid()) and RCT.UpdateRoster then
+                local rosterCount = 0
+                for _ in pairs(RCT.roster) do rosterCount = rosterCount + 1 end
+                if rosterCount == 0 then
+                    RCT:Debug("InitUI timer (" .. delay .. "s): roster empty, forcing UpdateRoster")
+                    RCT:UpdateRoster()
+                else
+                    RCT:Debug("InitUI timer (" .. delay .. "s): roster=" .. rosterCount .. ", refreshing UI")
+                    RCT:RefreshUI()
+                end
+            end
+        end)
+    end
 
     -- GROUP_ROSTER_UPDATE 직접 처리 (OnRosterUpdate 콜백 미등록 대비)
     RCT:RegisterEvent("GROUP_ROSTER_UPDATE", function()

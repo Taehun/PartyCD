@@ -53,6 +53,10 @@ function RCT:UpdateRoster()
     -- UI 갱신 트리거
     if RCT.OnRosterUpdate then
         RCT:OnRosterUpdate()
+    elseif RCT.RefreshUI then
+        -- FIX-5: OnRosterUpdate 콜백 미등록 시 (InitUI 이전) 직접 RefreshUI 호출
+        RCT:Debug("UpdateRoster: OnRosterUpdate nil, fallback to RefreshUI")
+        RCT:RefreshUI()
     end
 end
 
@@ -88,16 +92,15 @@ end
 function RCT:GetHealers()
     local healers = {}
     for name, data in pairs(RCT.roster) do
-        if data.online then
-            if data.role == "HEALER" then
-                healers[name] = data
-            elseif RCT.SpellsByClass[data.class] then
-                -- 역할과 무관하게 생존기 스펠이 있는 클래스면 포함
-                for _, spell in pairs(RCT.SpellsByClass[data.class]) do
-                    if spell.category == "SURVIVAL" then
-                        healers[name] = data
-                        break
-                    end
+        -- FIX-5: online 필터 제거 — 로딩/전환 중 UnitIsConnected()=false로 전원 필터링되는 문제 방지
+        -- 오프라인 멤버도 바를 표시 (쿨다운 추적만 안 됨)
+        if data.role == "HEALER" then
+            healers[name] = data
+        elseif RCT.SpellsByClass[data.class] then
+            for _, spell in pairs(RCT.SpellsByClass[data.class]) do
+                if spell.category == "SURVIVAL" then
+                    healers[name] = data
+                    break
                 end
             end
         end
@@ -109,7 +112,8 @@ end
 function RCT:GetPartyInterrupters()
     local interrupters = {}
     for name, data in pairs(RCT.roster) do
-        if data.subgroup == RCT.mySubgroup and data.online then
+        -- FIX-5: online 필터 제거 (GetHealers와 동일 이유)
+        if data.subgroup == RCT.mySubgroup then
             if data.role ~= "HEALER" then
                 interrupters[name] = data
             end
