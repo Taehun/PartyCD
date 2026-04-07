@@ -1,7 +1,7 @@
 -- Core.lua: 애드온 초기화 및 이벤트 프레임
 local addonName, RCT = ...
 
-RCT.version = "1.0.0"
+RCT.version = "1.0.9"
 RCT.addonPrefix = "PCD"
 RCT.debug = false
 
@@ -150,7 +150,7 @@ function RCT:HandleSlashCommand(msg)
             .. " interrupt=" .. (intf and (intf:IsShown() and "SHOWN" or "HIDDEN") or "nil"))
     -- FIX-5: 간결한 진단 출력 (pcall로 에러 캡처)
     elseif msg == "diag" then
-        print("|cff00ff00[PartyCD] Diagnostics:|r")
+        print("|cff00ff00[PartyCD] Diagnostics v" .. RCT.version .. ":|r")
         print("  Group: " .. tostring(IsInGroup()) .. " Raid: " .. tostring(IsInRaid()) .. " Members: " .. GetNumGroupMembers() .. " mySG: " .. tostring(RCT.mySubgroup))
         local rosterCount, onlineCount = 0, 0
         for _, data in pairs(RCT.roster) do

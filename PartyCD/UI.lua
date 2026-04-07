@@ -256,6 +256,16 @@ local function RefreshContainerUI(container, entries, showSetting)
     end
 end
 
+-- FIX-7: 쿨다운 조회를 로컬 함수로 인라인 — CooldownTracker 로딩 실패에도 동작 보장
+local function GetCooldownRemainingLocal(playerName, spellID)
+    if not RCT.cooldowns then return 0, 0 end
+    local data = RCT.cooldowns[playerName .. ":" .. spellID]
+    if not data then return 0, 0 end
+    local remaining = data.expires - GetTime()
+    if remaining <= 0 then return 0, 0 end
+    return remaining, data.duration
+end
+
 -- 엔트리 수집: 힐러 생존기
 local function CollectSurvivalEntries()
     local entries = {}
@@ -263,8 +273,8 @@ local function CollectSurvivalEntries()
     for name, memberData in pairs(healers) do
         local trackedSpells = RCT:GetTrackedSpellsForUnit(name, "SURVIVAL")
         for spellID, spellData in pairs(trackedSpells) do
-            local remaining, duration = RCT:GetCooldownRemaining(name, spellID)
-            local cdData = RCT.cooldowns[name .. ":" .. spellID]
+            local remaining, duration = GetCooldownRemainingLocal(name, spellID)
+            local cdData = RCT.cooldowns and RCT.cooldowns[name .. ":" .. spellID]
             entries[#entries + 1] = {
                 name = name,
                 spellID = spellID,
@@ -285,8 +295,8 @@ local function CollectInterruptEntries()
     for name, memberData in pairs(interrupters) do
         local trackedSpells = RCT:GetTrackedSpellsForUnit(name, "INTERRUPT")
         for spellID, spellData in pairs(trackedSpells) do
-            local remaining, duration = RCT:GetCooldownRemaining(name, spellID)
-            local cdData = RCT.cooldowns[name .. ":" .. spellID]
+            local remaining, duration = GetCooldownRemainingLocal(name, spellID)
+            local cdData = RCT.cooldowns and RCT.cooldowns[name .. ":" .. spellID]
             entries[#entries + 1] = {
                 name = name,
                 spellID = spellID,
