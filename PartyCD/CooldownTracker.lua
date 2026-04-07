@@ -34,8 +34,7 @@ function RCT:InitTracker()
     RCT:RegisterEvent("SPELL_UPDATE_COOLDOWN", RCT.OnSpellUpdateCooldown)
     RCT:RegisterEvent("UNIT_AURA", RCT.OnUnitAura)
     RCT:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED", RCT.OnSpellcastInterrupted)
-    RCT:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED", RCT.OnCombatLog)
-    RCT:Debug("Tracker: events registered (SPELLCAST/CD/AURA/INTERRUPT/COMBATLOG)")
+    RCT:Debug("Tracker: events registered (SPELLCAST/CD/AURA/INTERRUPT)")
 
     -- RT-4: OnUpdate 프레임 생성 (초기에는 숨김)
     updater = CreateFrame("Frame")
@@ -153,48 +152,6 @@ function RCT:HandleSecretSpellcast(unitTarget)
     -- C_Spell.GetSpellCooldown으로 직접 확인 (본인만 가능하므로 이 경로는 제한적)
     -- 대신 UNIT_AURA와 UNIT_SPELLCAST_INTERRUPTED 감지에 의존
     RCT:Debug("SECRET_FALLBACK: " .. name .. " (" .. tostring(member.class) .. ") - relying on AURA/INTERRUPT detection")
-end
-
--- FIX-5: COMBAT_LOG_EVENT_UNFILTERED — Secret Values 보완 감지 경로
--- 전투 로그에서 SPELL_CAST_SUCCESS를 감지하여 UNIT_SPELLCAST_SUCCEEDED의 한계 보완
-function RCT:OnCombatLog()
-    local _, subEvent, _, _, sourceName, _, _, _, _, _, _, spellID = CombatLogGetCurrentEventInfo()
-
-    if subEvent ~= "SPELL_CAST_SUCCESS" then return end
-    if not spellID or IsSecret(spellID) then return end
-    if not sourceName then return end
-
-    local shortName = Ambiguate(sourceName, "short")
-
-    -- 본인 시전은 다른 핸들러에서 처리
-    if shortName == Ambiguate(UnitName("player") or "", "short") then return end
-
-    -- roster에 없는 멤버 무시
-    if not RCT.roster[shortName] then return end
-
-    -- 추적 대상 스펠만 처리
-    local spellData = RCT.SpellData[spellID]
-    if not spellData then return end
-
-    local key = shortName .. ":" .. spellID
-    local existing = RCT.cooldowns[key]
-
-    -- 이미 유효한 쿨다운 데이터가 있으면 덮어쓰지 않음
-    if existing and existing.expires > GetTime() then return end
-
-    local now = GetTime()
-    RCT.cooldowns[key] = {
-        startTime = now,
-        expires = now + spellData.cooldown,
-        duration = spellData.cooldown,
-        source = "combatlog",
-    }
-
-    RCT:Debug("COMBATLOG: " .. shortName .. " used " .. spellData.name)
-
-    if RCT.OnCooldownUpdate then
-        RCT:OnCooldownUpdate(shortName, spellID)
-    end
 end
 
 -- UNIT_AURA: 생존기 버프 감지 (UNIT_SPELLCAST_SUCCEEDED의 보완 감지 수단)
