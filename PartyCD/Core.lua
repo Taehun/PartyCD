@@ -1,7 +1,7 @@
 -- Core.lua: 애드온 초기화 및 이벤트 프레임
 local addonName, RCT = ...
 
-RCT.version = "1.0.11"
+RCT.version = "1.0.12"
 RCT.addonPrefix = "PCD"
 RCT.debug = false
 
@@ -34,11 +34,15 @@ function RCT:UnregisterEvent(event)
     frame:UnregisterEvent(event)
 end
 
+-- FIX-9: 모든 이벤트 핸들러를 pcall로 보호 — Secret Values 에러 방지
 frame:SetScript("OnEvent", function(self, event, ...)
     local handlers = eventHandlers[event]
     if handlers then
         for _, handler in ipairs(handlers) do
-            handler(RCT, ...)
+            local ok, err = pcall(handler, RCT, ...)
+            if not ok and RCT.debug then
+                print("|cffff8800[PCD]|r " .. event .. " handler error: " .. tostring(err))
+            end
         end
     end
 end)
