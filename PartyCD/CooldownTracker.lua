@@ -67,24 +67,32 @@ end
 -- 12.0.0+: spellID가 Secret Value일 수 있음 (M+/PvP/레이드 전투 중)
 -- Secret Value는 테이블 키로 사용 불가 → issecretvalue() 체크 필수
 function RCT:OnSpellcastSucceeded(unitTarget, castGUID, spellID, castBarID)
-    -- 12.0 Secret Values: spellID가 secret이면 테이블 조회 불가
-    if IsSecret(spellID) then
-        -- Secret spellID → 유닛의 클래스 기반으로 추론 시도
-        RCT:Debug("SPELLCAST: secret spellID from " .. tostring(unitTarget) .. ", trying class-based fallback")
-        RCT:HandleSecretSpellcast(unitTarget)
+    -- FIX-10: spellID는 NeverSecret (WoW 12.0 Wiki 확인) — Secret 체크 제거
+    -- issecretvalue가 존재하면 안전 체크만 수행, 결과와 무관하게 진행
+    if not spellID then return end
+
+    -- 안전 체크: spellID가 혹시 secret이면 pcall로 테이블 조회 시도
+    local spellData
+    local ok, result = pcall(function() return RCT.SpellData[spellID] end)
+    if ok then
+        spellData = result
+    else
+        -- 정말로 secret인 경우 (NeverSecret 문서와 다를 수 있음)
+        RCT:Debug("SPELLCAST: spellID lookup failed for " .. tostring(unitTarget))
         return
     end
 
     -- 이벤트 디버그 (tracked spell만 출력)
-    if RCT.SpellData[spellID] then
+    if spellData then
         RCT:Debug("EVENT SPELLCAST: unit=" .. tostring(unitTarget) .. " spellID=" .. tostring(spellID)
-            .. " (" .. RCT.SpellData[spellID].name .. ")")
+            .. " (" .. spellData.name .. ")")
     end
 
-    -- 본인 시전은 secret이 아님 → 안전하게 처리
+    -- FIX-10: spellData는 이미 상단에서 조회됨 (pcall 보호)
+    if not spellData then return end
+
+    -- 본인 시전
     if UnitIsUnit(unitTarget, "player") then
-        local spellData = RCT.SpellData[spellID]
-        if not spellData then return end
         local playerName = UnitName("player")
         local key = playerName .. ":" .. spellID
 
@@ -98,15 +106,18 @@ function RCT:OnSpellcastSucceeded(unitTarget, castGUID, spellID, castBarID)
 
         RCT:Debug("SPELLCAST_SELF: " .. spellData.name .. " cd=" .. spellData.cooldown .. "s")
 
+        -- FIX-10: 본인 쿨다운을 파티에 broadcast
+        if RCT.BroadcastCooldown then
+            RCT:BroadcastCooldown(spellID, spellData.cooldown)
+        end
+
         if RCT.OnCooldownUpdate then
             RCT:OnCooldownUpdate(playerName, spellID)
         end
         return
     end
 
-    -- 다른 플레이어: spellID는 정상 정수 (non-secret 경로)
-    local spellData = RCT.SpellData[spellID]
-    if not spellData then return end
+    -- 다른 플레이어
 
     local name = UnitName(unitTarget)
     if not name then return end
@@ -134,25 +145,7 @@ function RCT:OnSpellcastSucceeded(unitTarget, castGUID, spellID, castBarID)
     end
 end
 
--- Secret spellID 대체 감지: 클래스+역할 기반 쿨타임 추론
--- M+/레이드 전투 중 spellID가 secret일 때 사용
-function RCT:HandleSecretSpellcast(unitTarget)
-    if not unitTarget then return end
-
-    local name = UnitName(unitTarget)
-    if not name then return end
-    name = Ambiguate(name, "short")
-
-    if UnitIsUnit(unitTarget, "player") then return end -- 본인은 항상 non-secret
-
-    local member = RCT.roster[name]
-    if not member then return end
-
-    -- 해당 클래스의 추적 스킬 중 현재 쿨다운이 아닌 것에 대해
-    -- C_Spell.GetSpellCooldown으로 직접 확인 (본인만 가능하므로 이 경로는 제한적)
-    -- 대신 UNIT_AURA와 UNIT_SPELLCAST_INTERRUPTED 감지에 의존
-    RCT:Debug("SECRET_FALLBACK: " .. name .. " (" .. tostring(member.class) .. ") - relying on AURA/INTERRUPT detection")
-end
+-- HandleSecretSpellcast 제거됨 (FIX-10: spellID는 NeverSecret)
 
 -- UNIT_AURA: 생존기 버프 감지 (UNIT_SPELLCAST_SUCCEEDED의 보완 감지 수단)
 -- 가시 범위 밖 힐러의 생존기 시전도 버프를 통해 감지 가능

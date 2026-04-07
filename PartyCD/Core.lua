@@ -1,7 +1,7 @@
 -- Core.lua: 애드온 초기화 및 이벤트 프레임
 local addonName, RCT = ...
 
-RCT.version = "1.0.12"
+RCT.version = "1.1.0"
 RCT.addonPrefix = "PCD"
 RCT.debug = false
 
@@ -91,6 +91,7 @@ function RCT:Init()
     end
     SafeInit("Roster", function() RCT:InitRoster() end)
     SafeInit("Tracker", function() RCT:InitTracker() end)
+    SafeInit("Comm", function() RCT:InitComm() end)
     SafeInit("UI", function() RCT:InitUI() end)
 
     -- 슬래시 커맨드
