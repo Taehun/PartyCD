@@ -1,7 +1,7 @@
 -- Core.lua: 애드온 초기화 및 이벤트 프레임
 local addonName, RCT = ...
 
-RCT.version = "1.0.10"
+RCT.version = "1.0.11"
 RCT.addonPrefix = "PCD"
 RCT.debug = false
 
@@ -81,6 +81,10 @@ function RCT:Init()
     RCT.db = PartyCDDB
 
     -- FIX-4: 각 모듈을 pcall로 보호하여 하나 실패해도 나머지 실행
+    -- FIX-8: 파일 로딩 마커 체크
+    if not RCT._trackerLoaded then
+        print("|cffff0000[PartyCD]|r CooldownTracker.lua 로딩 실패 — 파일 문법 오류 가능")
+    end
     SafeInit("Roster", function() RCT:InitRoster() end)
     SafeInit("Tracker", function() RCT:InitTracker() end)
     SafeInit("UI", function() RCT:InitUI() end)

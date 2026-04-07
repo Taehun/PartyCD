@@ -162,52 +162,39 @@ function RCT:OnUnitAura(unitTarget, updateInfo)
 
     for _, auraData in ipairs(updateInfo.addedAuras) do
         local auraSpellID = auraData.spellId
-        if not auraSpellID then goto continue end
-
-        -- 12.0: auraSpellID도 secret일 수 있음
-        if IsSecret(auraSpellID) then goto continue end
-
-        local originalSpellID = RCT.AuraToSpell[auraSpellID]
-        if not originalSpellID then goto continue end
-
-        -- 시전자(sourceUnit) 확인
-        local sourceUnit = auraData.sourceUnit
-        if not sourceUnit then goto continue end
-
-        local sourceName = UnitName(sourceUnit)
-        if not sourceName then goto continue end
-        sourceName = Ambiguate(sourceName, "short")
-
-        -- 본인 시전은 다른 핸들러에서 처리
-        if UnitIsUnit(sourceUnit, "player") then goto continue end
-
-        -- 로스터에 있는 멤버인지 확인
-        if not RCT.roster[sourceName] then goto continue end
-
-        local key = sourceName .. ":" .. originalSpellID
-        local existing = RCT.cooldowns[key]
-
-        -- 이미 더 정확한 소스(addon/local)의 데이터가 있으면 덮어쓰지 않음
-        if existing and existing.expires > GetTime() then goto continue end
-
-        local spellData = RCT.SpellData[originalSpellID]
-        if not spellData then goto continue end
-
-        local now = GetTime()
-        RCT.cooldowns[key] = {
-            startTime = now,
-            expires = now + spellData.cooldown,
-            duration = spellData.cooldown,
-            source = "aura",
-        }
-
-        RCT:Debug("AURA detected: " .. sourceName .. " used " .. spellData.name)
-
-        if RCT.OnCooldownUpdate then
-            RCT:OnCooldownUpdate(sourceName, originalSpellID)
+        -- FIX-8: goto/label 제거 — WoW 12.0 Lua 호환성
+        if auraSpellID and not IsSecret(auraSpellID) then
+            local originalSpellID = RCT.AuraToSpell[auraSpellID]
+            if originalSpellID then
+                local sourceUnit = auraData.sourceUnit
+                if sourceUnit and not UnitIsUnit(sourceUnit, "player") then
+                    local sourceName = UnitName(sourceUnit)
+                    if sourceName then
+                        sourceName = Ambiguate(sourceName, "short")
+                        if RCT.roster[sourceName] then
+                            local key = sourceName .. ":" .. originalSpellID
+                            local existing = RCT.cooldowns[key]
+                            if not (existing and existing.expires > GetTime()) then
+                                local spellData = RCT.SpellData[originalSpellID]
+                                if spellData then
+                                    local now = GetTime()
+                                    RCT.cooldowns[key] = {
+                                        startTime = now,
+                                        expires = now + spellData.cooldown,
+                                        duration = spellData.cooldown,
+                                        source = "aura",
+                                    }
+                                    RCT:Debug("AURA detected: " .. sourceName .. " used " .. spellData.name)
+                                    if RCT.OnCooldownUpdate then
+                                        RCT:OnCooldownUpdate(sourceName, originalSpellID)
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
         end
-
-        ::continue::
     end
 end
 
@@ -331,4 +318,7 @@ function RCT:OnTrackerUpdate()
 end
 
 -- GetCooldownRemaining은 파일 상단에 정의됨 (로딩 순서 보장)
+
+-- 파일 로딩 완료 마커
+RCT._trackerLoaded = true
 
