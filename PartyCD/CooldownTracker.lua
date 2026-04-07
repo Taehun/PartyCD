@@ -14,6 +14,18 @@ local function IsSecret(value)
     return issecretvalue and issecretvalue(value) or false
 end
 
+-- 특정 플레이어+스킬의 남은 쿨타임 조회 (파일 앞쪽에 정의하여 로딩 순서 보장)
+function RCT:GetCooldownRemaining(playerName, spellID)
+    local key = playerName .. ":" .. spellID
+    local data = RCT.cooldowns[key]
+    if not data then return 0, 0 end
+
+    local remaining = data.expires - GetTime()
+    if remaining <= 0 then return 0, 0 end
+
+    return remaining, data.duration
+end
+
 -- RT-4: OnUpdate 프레임을 모듈 레벨에서 관리
 local updater
 
@@ -361,15 +373,5 @@ function RCT:OnTrackerUpdate()
     end
 end
 
--- 특정 플레이어+스킬의 남은 쿨타임 조회
-function RCT:GetCooldownRemaining(playerName, spellID)
-    local key = playerName .. ":" .. spellID
-    local data = RCT.cooldowns[key]
-    if not data then return 0, 0 end
-
-    local remaining = data.expires - GetTime()
-    if remaining <= 0 then return 0, 0 end
-
-    return remaining, data.duration
-end
+-- GetCooldownRemaining은 파일 상단에 정의됨 (로딩 순서 보장)
 
