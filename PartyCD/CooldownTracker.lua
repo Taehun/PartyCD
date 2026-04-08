@@ -102,11 +102,6 @@ function RCT:OnSpellcastSucceeded(unitTarget, castGUID, spellID, castBarID)
 
         RCT:Debug("SPELLCAST_SELF: " .. spellData.name .. " cd=" .. spellData.cooldown .. "s")
 
-        -- FIX-10: 본인 쿨다운을 파티에 broadcast
-        if RCT.BroadcastCooldown then
-            RCT:BroadcastCooldown(spellID, spellData.cooldown)
-        end
-
         if RCT.OnCooldownUpdate then
             RCT:OnCooldownUpdate(playerName, spellID)
         end
