@@ -29,8 +29,19 @@ function RCT:InitComm()
     RCT:Debug("AddonComm: initialized, prefix=" .. ADDON_PREFIX)
 end
 
--- 본인 쿨다운 broadcast
+-- WoW 12.0: M+ 키/보스전 중 addon comm 차단 여부 확인
+local function IsCommLocked()
+    if C_ChatInfo and C_ChatInfo.InChatMessagingLockdown then
+        local ok, restricted = pcall(C_ChatInfo.InChatMessagingLockdown)
+        if ok and restricted then return true end
+    end
+    return false
+end
+
+-- 본인 쿨다운 broadcast (풀 사이에만 전송 가능)
 function RCT:BroadcastCooldown(spellID, duration)
+    if IsCommLocked() then return end
+
     local channel = GetCommChannel()
     if not channel then return end
 

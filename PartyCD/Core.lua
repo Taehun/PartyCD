@@ -1,7 +1,7 @@
 -- Core.lua: 애드온 초기화 및 이벤트 프레임
 local addonName, RCT = ...
 
-RCT.version = "1.1.0"
+RCT.version = "1.1.1"
 RCT.addonPrefix = "PCD"
 RCT.debug = false
 

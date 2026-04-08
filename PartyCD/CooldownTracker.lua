@@ -63,23 +63,19 @@ function RCT:InitTracker()
     end
 end
 
--- 다른 플레이어가 스킬 시전 시 (로컬 감지)
--- 12.0.0+: spellID가 Secret Value일 수 있음 (M+/PvP/레이드 전투 중)
--- Secret Value는 테이블 키로 사용 불가 → issecretvalue() 체크 필수
+-- 스킬 시전 감지
+-- WoW 12.0: 본인 spellID는 non-secret, 파티원 spellID는 M+ 전투 중 secret
+-- pcall로 테이블 조회하여 secret이면 자연스럽게 스킵, non-secret이면 정상 처리
 function RCT:OnSpellcastSucceeded(unitTarget, castGUID, spellID, castBarID)
-    -- FIX-10: spellID는 NeverSecret (WoW 12.0 Wiki 확인) — Secret 체크 제거
-    -- issecretvalue가 존재하면 안전 체크만 수행, 결과와 무관하게 진행
     if not spellID then return end
 
-    -- 안전 체크: spellID가 혹시 secret이면 pcall로 테이블 조회 시도
+    -- pcall로 SpellData 조회 — secret spellID면 에러 → 스킵
     local spellData
     local ok, result = pcall(function() return RCT.SpellData[spellID] end)
     if ok then
         spellData = result
     else
-        -- 정말로 secret인 경우 (NeverSecret 문서와 다를 수 있음)
-        RCT:Debug("SPELLCAST: spellID lookup failed for " .. tostring(unitTarget))
-        return
+        return -- 파티원 시전 + M+ 전투 중 (secret spellID) → 정상 동작
     end
 
     -- 이벤트 디버그 (tracked spell만 출력)
