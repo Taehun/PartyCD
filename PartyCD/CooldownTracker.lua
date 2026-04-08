@@ -182,56 +182,93 @@ function RCT:OnUnitAura(unitTarget, updateInfo)
     end
 end
 
--- UNIT_SPELLCAST_INTERRUPTED: 차단 감지 보완
--- 12.0.0+ interruptedBy GUID로 누가 차단했는지 확인 가능
-function RCT:OnSpellcastInterrupted(unitTarget, castGUID, spellID, interruptedBy, castBarID)
-    if not interruptedBy then return end
-    if IsSecret(interruptedBy) then return end
+-- FIX-11: 적 시점 차단 역추론 (Enemy-side Interrupt Inference)
+-- WoW 12.0: 파티원 spellID는 secret이므로 직접 감지 불가
+-- 대신 적의 UNIT_SPELLCAST_INTERRUPTED를 감지 → 차단기 준비된 파티원에게 배정
+function RCT:OnSpellcastInterrupted(unitTarget, castGUID, spellID)
     if not (IsInGroup() or IsInRaid()) then return end
 
-    -- interruptedBy GUID를 파티/레이드 멤버와 매칭
-    local interrupterName = nil
-    for name, data in pairs(RCT.roster) do
-        if data.unit and UnitGUID(data.unit) == interruptedBy then
-            interrupterName = name
-            break
+    -- unitTarget이 적 유닛인지 확인 (파티/레이드 멤버가 아닌 유닛)
+    -- 적 유닛: target, focus, nameplateN, bossN 등
+    local isEnemy = false
+    local ok, result = pcall(UnitIsEnemy, unitTarget, "player")
+    if ok and result then
+        isEnemy = true
+    end
+    if not isEnemy then return end
+
+    -- 본인 차단은 UNIT_SPELLCAST_SUCCEEDED에서 이미 처리됨 → 중복 방지
+    local myName = UnitName("player")
+    local myInterruptOnCD = false
+    local _, myClass = UnitClass("player")
+    local mySpells = RCT.SpellsByClass[myClass]
+    if mySpells then
+        for sid, sdata in pairs(mySpells) do
+            if sdata.category == "INTERRUPT" then
+                local key = myName .. ":" .. sid
+                local cd = RCT.cooldowns[key]
+                -- 방금(1초 이내) 쿨다운이 시작됐으면 본인 차단 → 역추론 스킵
+                if cd and cd.source == "local" and (GetTime() - cd.startTime) < 1.0 then
+                    RCT:Debug("INTERRUPT_INFER: skipped (self interrupt detected)")
+                    return
+                end
+                -- 본인 차단기가 쿨중이면 다른 파티원이 차단한 것
+                if cd and cd.expires > GetTime() then
+                    myInterruptOnCD = true
+                end
+                break
+            end
         end
     end
 
-    if not interrupterName then return end
-    -- 본인은 다른 핸들러에서 처리
-    if interrupterName == UnitName("player") then return end
-
-    -- 해당 멤버의 차단기 스펠 찾기
-    local member = RCT.roster[interrupterName]
-    if not member then return end
-
-    local classSpells = RCT.SpellsByClass[member.class]
-    if not classSpells then return end
-
-    for sid, sdata in pairs(classSpells) do
-        if sdata.category == "INTERRUPT" then
-            local key = interrupterName .. ":" .. sid
-            local existing = RCT.cooldowns[key]
-
-            -- 이미 최근 데이터가 있으면 스킵
-            if existing and existing.expires > GetTime() then return end
-
-            local now = GetTime()
-            RCT.cooldowns[key] = {
-                startTime = now,
-                expires = now + sdata.cooldown,
-                duration = sdata.cooldown,
-                source = "interrupt",
-            }
-
-            RCT:Debug("INTERRUPT detected: " .. interrupterName .. " used " .. sdata.name)
-
-            if RCT.OnCooldownUpdate then
-                RCT:OnCooldownUpdate(interrupterName, sid)
+    -- 파티원 중 차단기가 "준비됨" 상태인 멤버 찾기
+    local candidates = {}
+    local now = GetTime()
+    for name, data in pairs(RCT.roster) do
+        if name ~= myName then
+            local classSpells = RCT.SpellsByClass[data.class]
+            if classSpells then
+                for sid, sdata in pairs(classSpells) do
+                    if sdata.category == "INTERRUPT" then
+                        local key = name .. ":" .. sid
+                        local cd = RCT.cooldowns[key]
+                        -- 쿨다운이 없거나 만료됨 = 준비됨
+                        if not cd or cd.expires <= now then
+                            candidates[#candidates + 1] = {
+                                name = name,
+                                spellID = sid,
+                                spellData = sdata,
+                            }
+                        end
+                        break -- 클래스당 차단기 1개
+                    end
+                end
             end
-            return -- 클래스당 차단기는 보통 1개이므로 첫 매칭에서 중단
         end
+    end
+
+    -- 본인도 준비 상태이고 후보가 있으면, 본인이 안 했으니 파티원이 한 것
+    -- 본인이 쿨중이면 확실히 파티원
+    if #candidates == 0 then
+        RCT:Debug("INTERRUPT_INFER: no ready candidates")
+        return
+    end
+
+    -- 후보 중 첫 번째에게 배정 (정확도 한계 인정)
+    local chosen = candidates[1]
+    local key = chosen.name .. ":" .. chosen.spellID
+    RCT.cooldowns[key] = {
+        startTime = now,
+        expires = now + chosen.spellData.cooldown,
+        duration = chosen.spellData.cooldown,
+        source = "infer",
+    }
+
+    RCT:Debug("INTERRUPT_INFER: " .. chosen.name .. " → " .. chosen.spellData.name
+        .. " (candidates=" .. #candidates .. ")")
+
+    if RCT.OnCooldownUpdate then
+        RCT:OnCooldownUpdate(chosen.name, chosen.spellID)
     end
 end
 
