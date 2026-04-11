@@ -54,6 +54,20 @@ Locales → SpellData → RosterManager → CooldownTracker → AddonComm → UI
 - Class colors from `RAID_CLASS_COLORS`
 - Bilingual: Korean is the primary user language
 
+## Web Viewer (`viewer/`)
+
+Static web companion that tails `Logs/WoWCombatLog-*.txt` via the browser's File System Access API to display party cooldowns, as a workaround for Secret Values limits. Pure vanilla JS, no build step, no server.
+
+| File | Role |
+|---|---|
+| `viewer/spells.js` | Port of `PartyCD/SpellData.lua`. **Must be kept in sync when adding spells.** |
+| `viewer/parser.js` | Combat log line parser (pure function). Handles quoted commas, affiliation flags, aura remapping. |
+| `viewer/app.js` | Directory polling (500ms), state store, DOM rendering with node reuse, IndexedDB handle persistence. |
+| `viewer/index.html`, `style.css` | Static shell. |
+| `viewer/test/parser.test.js` | `node --test` unit tests (`npm test` in `viewer/`). |
+
+Chromium-only. Run via local static server (`npx serve viewer`) — `file://` blocks File System Access API.
+
 ## Useful References
 
 - WoW API: wiki.gg/wow, wowpedia

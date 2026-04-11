@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PartyCD Viewer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header id="topbar">
+    <h1>PartyCD Viewer</h1>
+    <div id="status" class="status-idle">대기 중</div>
+    <button id="change-folder" hidden>폴더 변경</button>
+  </header>
+
+  <div id="setup">
+    <div class="setup-box">
+      <h2>시작하기</h2>
+      <ol>
+        <li>WoW에서 <code>/combatlog</code> 을 입력하여 전투 로그를 켭니다.</li>
+        <li>아래 버튼을 눌러 <code>World of Warcraft/_retail_/Logs</code> 폴더를 선택합니다.</li>
+        <li>파티원이 추적 스펠을 시전하면 자동으로 바가 등장합니다.</li>
+      </ol>
+      <button id="pick" class="primary">WoW Logs 폴더 선택</button>
+      <p class="hint">Chrome / Edge / Arc 등 Chromium 기반 브라우저만 지원합니다.</p>
+    </div>
+  </div>
+
+  <main id="viewer" hidden>
+    <section id="survival">
+      <h2>🛡️ 힐러 생존기</h2>
+      <div class="bars"></div>
+      <p class="empty">아직 감지된 캐스트가 없습니다.</p>
+    </section>
+
+    <section id="interrupt">
+      <h2>⚔️ 인터럽트</h2>
+      <div class="bars"></div>
+      <p class="empty">아직 감지된 캐스트가 없습니다.</p>
+    </section>
+
+    <section id="history">
+      <h2>📜 최근 캐스트</h2>
+      <ul></ul>
+    </section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
