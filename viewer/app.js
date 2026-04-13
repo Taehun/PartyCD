@@ -1,5 +1,6 @@
 import { parseLine } from "./parser.js";
 import { SpellData, CLASS_COLORS } from "./spells.js";
+import { t, setLocale, getLocale, detectLocale } from "./i18n.js";
 
 // ============================================================
 // 상수
@@ -33,8 +34,11 @@ const barNodes = new Map(); // "player:spellId" → HTMLElement, DOM 재사용
 // 엔트리
 // ============================================================
 async function main() {
+  setLocale(detectLocale());
+  initLangToggle();
+
   if (!("showDirectoryPicker" in window)) {
-    showError("이 브라우저는 File System Access API를 지원하지 않습니다. Chrome/Edge/Arc 같은 Chromium 기반 브라우저를 사용하세요.");
+    showError(t("status_unsupported"));
     return;
   }
 
@@ -47,12 +51,23 @@ async function main() {
     if (perm === "granted") {
       startWatching(saved);
     } else {
-      setStatus("권한 재승인 필요 — 폴더 다시 선택", "warn");
-      document.getElementById("pick").textContent = "폴더 다시 선택 (재승인)";
+      setStatus(t("status_permission_reauth"), "warn");
+      document.getElementById("pick").textContent = t("btn_pick_reauth");
     }
   }
 
   setInterval(renderTick, RENDER_INTERVAL_MS);
+}
+
+function initLangToggle() {
+  const btn = document.getElementById("lang-toggle");
+  btn.textContent = getLocale() === "ko" ? "EN" : "KO";
+  btn.addEventListener("click", () => {
+    const next = getLocale() === "ko" ? "en" : "ko";
+    setLocale(next);
+    btn.textContent = next === "ko" ? "EN" : "KO";
+    renderFull();
+  });
 }
 
 async function onPickFolder() {
@@ -63,7 +78,7 @@ async function onPickFolder() {
   } catch (e) {
     if (e.name !== "AbortError") {
       console.error(e);
-      showError(`폴더 선택 실패: ${e.message}`);
+      showError(`${t("status_folder_fail")}: ${e.message}`);
     }
   }
 }
@@ -87,7 +102,7 @@ function startWatching(dirHandle) {
   readPosition = 0;
   residualBuffer = "";
 
-  setStatus("폴더 연결됨 — 로그 파일 찾는 중", "warn");
+  setStatus(t("status_folder_connected"), "warn");
 
   watchTimer = setInterval(() => pollOnce(dirHandle).catch(onPollError), POLL_INTERVAL_MS);
   pollOnce(dirHandle).catch(onPollError);
@@ -97,7 +112,7 @@ async function pollOnce(dirHandle) {
   const latest = await findLatestLog(dirHandle);
 
   if (!latest) {
-    setStatus("대기 중 — WoW에서 /combatlog 을 켜주세요", "warn");
+    setStatus(t("status_waiting_log"), "warn");
     return;
   }
 
@@ -106,7 +121,7 @@ async function pollOnce(dirHandle) {
     readPosition = 0;
     residualBuffer = "";
     state.currentFileName = latest.name;
-    setStatus(`연결됨 — ${latest.name}`, "ok");
+    setStatus(`${t("status_connected")} — ${latest.name}`, "ok");
   }
 
   const file = await currentFileHandle.getFile();
@@ -152,14 +167,14 @@ async function pollOnce(dirHandle) {
 function onPollError(err) {
   console.error("poll error:", err);
   if (err.name === "NotAllowedError") {
-    setStatus("권한이 철회되었습니다 — 폴더를 다시 선택하세요", "err");
+    setStatus(t("status_permission_revoked"), "err");
     if (watchTimer) clearInterval(watchTimer);
     watchTimer = null;
     document.getElementById("setup").hidden = false;
     document.getElementById("viewer").hidden = true;
     return;
   }
-  setStatus(`오류: ${err.message}`, "err");
+  setStatus(`${t("status_error")}: ${err.message}`, "err");
 }
 
 async function findLatestLog(dirHandle) {
@@ -330,7 +345,7 @@ function updateBarNode(node, e) {
   node.classList.toggle("ready", ready);
   node.classList.toggle("cooling", !ready);
   const timeEl = node.querySelector(".time");
-  timeEl.textContent = ready ? "READY" : formatTime(e.remaining);
+  timeEl.textContent = ready ? t("ready") : formatTime(e.remaining);
   const totalMs = e.spell.cooldown * 1000;
   const pct = ready ? 0 : (e.remaining / totalMs) * 100;
   node.querySelector(".fill").style.width = `${pct}%`;
@@ -352,7 +367,7 @@ function renderTick() {
     const nowReady = remaining === 0;
     if (wasReady !== nowReady) needsResort = true;
 
-    node.querySelector(".time").textContent = nowReady ? "READY" : formatTime(remaining);
+    node.querySelector(".time").textContent = nowReady ? t("ready") : formatTime(remaining);
     node.classList.toggle("ready", nowReady);
     node.classList.toggle("cooling", !nowReady);
     const totalMs = spell.cooldown * 1000;
@@ -389,8 +404,8 @@ function renderHistory() {
     const kindEl = document.createElement("span");
     kindEl.className = "hist-kind";
     const kindLabel = h.type === "interrupt"
-      ? `끊음: ${h.targetSpellName ?? "?"}`
-      : h.type === "aura" ? "버프" : "시전";
+      ? `${t("kind_interrupt")}: ${h.targetSpellName ?? "?"}`
+      : h.type === "aura" ? t("kind_aura") : t("kind_cast");
     kindEl.textContent = kindLabel;
 
     li.append(timeEl, playerEl, spellEl, kindEl);
@@ -457,5 +472,5 @@ async function loadHandleFromIDB() {
 // ============================================================
 main().catch(e => {
   console.error(e);
-  showError(`초기화 실패: ${e.message}`);
+  showError(`${t("status_init_fail")}: ${e.message}`);
 });

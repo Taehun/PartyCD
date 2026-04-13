@@ -4,55 +4,86 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PartyCD Viewer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <div class="scanline"></div>
+
   <header id="topbar">
-    <h1>PartyCD Viewer</h1>
-    <div id="status" class="status-idle">대기 중</div>
-    <button id="change-folder" hidden>폴더 변경</button>
+    <div class="topbar-left">
+      <div class="logo">PCD</div>
+      <h1 data-i18n="title">PartyCD Viewer</h1>
+    </div>
+    <div class="topbar-right">
+      <div id="status" class="status-idle" data-i18n="status_idle"></div>
+      <button id="lang-toggle" title="EN / KO">EN</button>
+      <button id="change-folder" hidden data-i18n="btn_change_folder"></button>
+    </div>
   </header>
 
   <div id="setup">
     <div class="setup-box">
-      <h2>시작하기</h2>
+      <div class="setup-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
+      </div>
+      <h2 data-i18n="setup_title"></h2>
       <ol>
-        <li>WoW에서 <code>/combatlog</code> 을 입력하여 전투 로그를 켭니다.</li>
-        <li>아래 버튼을 눌러 <code>World of Warcraft/_retail_/Logs</code> 폴더를 선택합니다.</li>
-        <li>파티원이 추적 스펠을 시전하면 자동으로 바가 등장합니다.</li>
+        <li><code>/combatlog</code> <span data-i18n="setup_step1"></span></li>
+        <li data-i18n="setup_step2"></li>
+        <li data-i18n="setup_step3"></li>
       </ol>
-      <button id="pick" class="primary">WoW Logs 폴더 선택</button>
-      <p class="hint">Chrome / Edge / Arc 등 Chromium 기반 브라우저만 지원합니다.</p>
+      <button id="pick" class="primary" data-i18n="btn_pick"></button>
+      <p class="hint" data-i18n="setup_hint"></p>
     </div>
   </div>
 
   <main id="viewer" hidden>
-    <section id="survival">
-      <h2>🛡️ 외부 생존기</h2>
+    <section id="survival" class="panel panel--survival">
+      <div class="panel-header">
+        <span class="panel-icon">&#9876;</span>
+        <h2 data-i18n="section_survival"></h2>
+      </div>
       <div class="bars"></div>
-      <p class="empty">아직 감지된 캐스트가 없습니다.</p>
+      <p class="empty" data-i18n="empty"></p>
     </section>
 
-    <section id="raidcd">
-      <h2>💊 공대 쿨</h2>
+    <section id="raidcd" class="panel panel--raidcd">
+      <div class="panel-header">
+        <span class="panel-icon">&#9764;</span>
+        <h2 data-i18n="section_raidcd"></h2>
+      </div>
       <div class="bars"></div>
-      <p class="empty">아직 감지된 캐스트가 없습니다.</p>
+      <p class="empty" data-i18n="empty"></p>
     </section>
 
-    <section id="heroism">
-      <h2>⚡ 영웅심</h2>
+    <section id="heroism" class="panel panel--heroism">
+      <div class="panel-header">
+        <span class="panel-icon">&#9889;</span>
+        <h2 data-i18n="section_heroism"></h2>
+      </div>
       <div class="bars"></div>
-      <p class="empty">아직 감지된 캐스트가 없습니다.</p>
+      <p class="empty" data-i18n="empty"></p>
     </section>
 
-    <section id="battlerez">
-      <h2>💀 전투 부활</h2>
+    <section id="battlerez" class="panel panel--battlerez">
+      <div class="panel-header">
+        <span class="panel-icon">&#9760;</span>
+        <h2 data-i18n="section_battlerez"></h2>
+      </div>
       <div class="bars"></div>
-      <p class="empty">아직 감지된 캐스트가 없습니다.</p>
+      <p class="empty" data-i18n="empty"></p>
     </section>
 
-    <section id="history">
-      <h2>📜 최근 캐스트</h2>
+    <section id="history" class="panel panel--history">
+      <div class="panel-header">
+        <span class="panel-icon">&#9776;</span>
+        <h2 data-i18n="section_history"></h2>
+      </div>
       <ul></ul>
     </section>
   </main>
