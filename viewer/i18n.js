@@ -75,15 +75,29 @@ const translations = {
   },
 };
 
+const LOCALE_NAMES = {
+  ko: "한국어",
+  en: "English",
+};
+
+const STORAGE_KEY = "partycd-locale";
 let currentLocale = "ko";
 
+export function getAvailableLocales() {
+  return Object.entries(LOCALE_NAMES).map(([code, name]) => ({ code, name }));
+}
+
 export function detectLocale() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved && translations[saved]) return saved;
   const lang = (navigator.language ?? "ko").slice(0, 2);
-  return lang === "ko" ? "ko" : "en";
+  return translations[lang] ? lang : "en";
 }
 
 export function setLocale(locale) {
   currentLocale = translations[locale] ? locale : "en";
+  localStorage.setItem(STORAGE_KEY, currentLocale);
+  document.documentElement.lang = currentLocale;
   applyStaticTranslations();
   return currentLocale;
 }

@@ -111,7 +111,7 @@ html, body {
 #status.status-warn { color: var(--accent-heroism);  border-color: rgba(255,215,64,0.3); }
 #status.status-err  { color: var(--accent-battlerez); border-color: rgba(255,82,82,0.3); }
 
-#topbar button {
+#topbar button, .lang-btn {
   font-family: var(--font-body);
   font-size: 11px;
   font-weight: 600;
@@ -123,10 +123,68 @@ html, body {
   cursor: pointer;
   transition: all 0.15s;
 }
-#topbar button:hover {
+#topbar button:hover, .lang-btn:hover {
   background: var(--bg-hover);
   color: var(--fg);
   border-color: var(--border-lit);
+}
+
+/* Language Picker */
+.lang-picker {
+  position: relative;
+}
+
+.lang-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lang-btn svg {
+  opacity: 0.6;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.lang-btn:hover svg { opacity: 1; }
+
+#lang-label {
+  font-family: var(--font-body);
+  font-size: 11px;
+}
+
+.lang-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 120px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-lit);
+  border-radius: 4px;
+  padding: 4px 0;
+  list-style: none;
+  z-index: 200;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  animation: menu-in 0.15s ease-out;
+}
+
+@keyframes menu-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.lang-menu li {
+  font-family: var(--font-body);
+  font-size: 12px;
+  padding: 6px 14px;
+  cursor: pointer;
+  color: var(--fg-dim);
+  transition: all 0.1s;
+}
+
+.lang-menu li:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
 }
 
 /* ============================================================

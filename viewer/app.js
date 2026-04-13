@@ -1,6 +1,6 @@
 import { parseLine } from "./parser.js";
 import { SpellData, CLASS_COLORS } from "./spells.js";
-import { t, setLocale, getLocale, detectLocale } from "./i18n.js";
+import { t, setLocale, getLocale, detectLocale, getAvailableLocales } from "./i18n.js";
 
 // ============================================================
 // 상수
@@ -60,14 +60,38 @@ async function main() {
 }
 
 function initLangToggle() {
-  const btn = document.getElementById("lang-toggle");
-  btn.textContent = getLocale() === "ko" ? "EN" : "KO";
-  btn.addEventListener("click", () => {
-    const next = getLocale() === "ko" ? "en" : "ko";
-    setLocale(next);
-    btn.textContent = next === "ko" ? "EN" : "KO";
-    renderFull();
+  const btn = document.getElementById("lang-btn");
+  const menu = document.getElementById("lang-menu");
+  const label = document.getElementById("lang-label");
+  const locales = getAvailableLocales();
+
+  function updateLabel() {
+    const cur = locales.find(l => l.code === getLocale());
+    label.textContent = cur ? cur.name : getLocale();
+  }
+
+  // build menu items
+  for (const loc of locales) {
+    const li = document.createElement("li");
+    li.dataset.locale = loc.code;
+    li.textContent = loc.name;
+    li.addEventListener("click", () => {
+      setLocale(loc.code);
+      updateLabel();
+      menu.hidden = true;
+      renderFull();
+    });
+    menu.appendChild(li);
+  }
+
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    menu.hidden = !menu.hidden;
   });
+
+  document.addEventListener("click", () => { menu.hidden = true; });
+
+  updateLabel();
 }
 
 async function onPickFolder() {
