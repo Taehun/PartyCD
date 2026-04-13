@@ -11,6 +11,13 @@ const IDB_NAME = "partycd-viewer";
 const IDB_STORE = "handles";
 const IDB_KEY = "logs-dir";
 
+const CATEGORY_SECTIONS = {
+  SURVIVAL:  "survival",
+  RAID_CD:   "raidcd",
+  HEROISM:   "heroism",
+  BATTLEREZ: "battlerez",
+};
+
 // ============================================================
 // 상태
 // ============================================================
@@ -218,8 +225,7 @@ function applyEvent(event) {
 // 렌더링
 // ============================================================
 function renderFull() {
-  renderCategory("SURVIVAL");
-  renderCategory("INTERRUPT");
+  for (const cat of Object.keys(CATEGORY_SECTIONS)) renderCategory(cat);
   renderHistory();
   renderTick();
 }
@@ -257,7 +263,8 @@ function collectEntries(category) {
 }
 
 function renderCategory(category) {
-  const sectionId = category === "SURVIVAL" ? "survival" : "interrupt";
+  const sectionId = CATEGORY_SECTIONS[category];
+  if (!sectionId) return;
   const container = document.querySelector(`#${sectionId} .bars`);
   const entries = collectEntries(category);
 
@@ -353,8 +360,7 @@ function renderTick() {
     node.querySelector(".fill").style.width = `${pct}%`;
   }
   if (needsResort) {
-    renderCategory("SURVIVAL");
-    renderCategory("INTERRUPT");
+    for (const cat of Object.keys(CATEGORY_SECTIONS)) renderCategory(cat);
   }
 }
 

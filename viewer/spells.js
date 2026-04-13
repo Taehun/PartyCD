@@ -1,8 +1,8 @@
-// SpellData.lua 포트 (WoW 12.0.1 기준)
+// 추적 스펠 데이터 (WoW 12.0.1 기준)
 // 스펠 추가/수정 시 PartyCD/SpellData.lua 와 양쪽 동시 수정 필요
 
 export const SpellData = {
-  // ===== 힐러 생존기 =====
+  // ===== 힐러 외부 생존기 =====
   47788:  { name: "Guardian Spirit",            class: "PRIEST",      category: "SURVIVAL",  cooldown: 180, auraSpellID: 47788 },
   33206:  { name: "Pain Suppression",           class: "PRIEST",      category: "SURVIVAL",  cooldown: 180, auraSpellID: 33206 },
   102342: { name: "Ironbark",                   class: "DRUID",       category: "SURVIVAL",  cooldown: 90,  auraSpellID: 102342 },
@@ -13,24 +13,33 @@ export const SpellData = {
   207399: { name: "Ancestral Protection Totem", class: "SHAMAN",      category: "SURVIVAL",  cooldown: 300 },
   363534: { name: "Rewind",                     class: "EVOKER",      category: "SURVIVAL",  cooldown: 240 },
 
-  // ===== 딜러/탱커 차단기 =====
-  1766:   { name: "Kick",               class: "ROGUE",       category: "INTERRUPT", cooldown: 15 },
-  6552:   { name: "Pummel",             class: "WARRIOR",     category: "INTERRUPT", cooldown: 15 },
-  47528:  { name: "Mind Freeze",        class: "DEATHKNIGHT", category: "INTERRUPT", cooldown: 15 },
-  147362: { name: "Counter Shot",       class: "HUNTER",      category: "INTERRUPT", cooldown: 24 },
-  116705: { name: "Spear Hand Strike",  class: "MONK",        category: "INTERRUPT", cooldown: 15 },
-  183752: { name: "Disrupt",            class: "DEMONHUNTER", category: "INTERRUPT", cooldown: 15 },
-  57994:  { name: "Wind Shear",         class: "SHAMAN",      category: "INTERRUPT", cooldown: 15 },
-  2139:   { name: "Counterspell",      class: "MAGE",        category: "INTERRUPT", cooldown: 25 },
-  351338: { name: "Quell",              class: "EVOKER",      category: "INTERRUPT", cooldown: 20 },
-  106839: { name: "Skull Bash",         class: "DRUID",       category: "INTERRUPT", cooldown: 15 },
-  96231:  { name: "Rebuke",             class: "PALADIN",     category: "INTERRUPT", cooldown: 15 },
-  15487:  { name: "Silence",            class: "PRIEST",      category: "INTERRUPT", cooldown: 45 },
-  187707: { name: "Muzzle",             class: "HUNTER",      category: "INTERRUPT", cooldown: 15 },
-  78675:  { name: "Solar Beam",         class: "DRUID",       category: "INTERRUPT", cooldown: 60 },
+  // ===== 공대 힐링 쿨 =====
+  740:    { name: "Tranquility",         class: "DRUID",       category: "RAID_CD", cooldown: 180 },
+  64843:  { name: "Divine Hymn",         class: "PRIEST",      category: "RAID_CD", cooldown: 180 },
+  108280: { name: "Healing Tide Totem",  class: "SHAMAN",      category: "RAID_CD", cooldown: 180 },
+  115310: { name: "Revival",            class: "MONK",        category: "RAID_CD", cooldown: 180 },
+
+  // ===== 공대 방어 쿨 =====
+  97462:  { name: "Rallying Cry",        class: "WARRIOR",     category: "RAID_CD", cooldown: 180 },
+  196718: { name: "Darkness",            class: "DEMONHUNTER", category: "RAID_CD", cooldown: 300 },
+  51052:  { name: "Anti-Magic Zone",     class: "DEATHKNIGHT", category: "RAID_CD", cooldown: 120 },
+  31821:  { name: "Aura Mastery",        class: "PALADIN",     category: "RAID_CD", cooldown: 180 },
+
+  // ===== 영웅심/블러드러스트 =====
+  32182:  { name: "Heroism",             class: "SHAMAN",      category: "HEROISM", cooldown: 300 },
+  2825:   { name: "Bloodlust",           class: "SHAMAN",      category: "HEROISM", cooldown: 300 },
+  80353:  { name: "Time Warp",           class: "MAGE",        category: "HEROISM", cooldown: 300 },
+  264667: { name: "Primal Rage",         class: "HUNTER",      category: "HEROISM", cooldown: 300 },
+  390386: { name: "Fury of the Aspects", class: "EVOKER",      category: "HEROISM", cooldown: 300 },
+
+  // ===== 전투 부활 =====
+  20484:  { name: "Rebirth",             class: "DRUID",       category: "BATTLEREZ", cooldown: 600 },
+  61999:  { name: "Raise Ally",          class: "DEATHKNIGHT", category: "BATTLEREZ", cooldown: 600 },
+  20707:  { name: "Soulstone",           class: "WARLOCK",     category: "BATTLEREZ", cooldown: 600 },
+  391054: { name: "Intercession",        class: "PALADIN",     category: "BATTLEREZ", cooldown: 600 },
 };
 
-// auraSpellID → 원본 spellID 역인덱스 (UNIT_AURA 대응 SPELL_AURA_APPLIED 감지용)
+// auraSpellID → 원본 spellID 역인덱스 (SPELL_AURA_APPLIED 감지용)
 export const AuraToSpell = {};
 for (const [id, data] of Object.entries(SpellData)) {
   if (data.auraSpellID) AuraToSpell[data.auraSpellID] = Number(id);
@@ -50,4 +59,5 @@ export const CLASS_COLORS = {
   HUNTER:      "#AAD372",
   DEMONHUNTER: "#A330C9",
   MAGE:        "#3FC7EB",
+  WARLOCK:     "#8788EE",
 };
