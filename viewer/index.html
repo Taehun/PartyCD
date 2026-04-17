@@ -22,6 +22,13 @@
         <span class="status-dot"></span>
         <span id="status-text" data-i18n="status_idle"></span>
       </div>
+      <button id="overlay-toggle" class="icon-btn" hidden>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="12" height="12" rx="1"/>
+          <rect x="9" y="9" width="12" height="12" rx="1"/>
+        </svg>
+        <span data-i18n="btn_overlay"></span>
+      </button>
       <div id="lang-picker" class="lang-picker">
         <button id="lang-btn" class="icon-btn" title="Language">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -33,13 +40,6 @@
         </button>
         <ul id="lang-menu" class="lang-menu" hidden></ul>
       </div>
-      <button id="overlay-toggle" class="icon-btn" hidden>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="12" height="12" rx="1"/>
-          <rect x="9" y="9" width="12" height="12" rx="1" fill="currentColor" fill-opacity="0.12"/>
-        </svg>
-        <span data-i18n="btn_overlay"></span>
-      </button>
       <button id="change-folder" class="icon-btn" hidden title="Change folder">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
