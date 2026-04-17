@@ -1,5 +1,5 @@
 import { parseLine } from "./parser.js";
-import { SpellData, CLASS_COLORS, iconUrl } from "./spells.js";
+import { SpellData, CLASS_COLORS, iconUrl, localizedSpellName } from "./spells.js";
 import { t, setLocale, getLocale, detectLocale, getAvailableLocales } from "./i18n.js";
 
 // ============================================================
@@ -435,6 +435,8 @@ function createSpellCard(spellId) {
   card.className = "spell-card";
   card.dataset.spellId = spellId;
 
+  const displayName = localizedSpellName(spell, getLocale());
+
   const icon = document.createElement("div");
   icon.className = "spell-icon";
 
@@ -442,7 +444,7 @@ function createSpellCard(spellId) {
   if (url) {
     const img = document.createElement("img");
     img.src = url;
-    img.alt = spell.name;
+    img.alt = displayName;
     img.loading = "lazy";
     img.referrerPolicy = "no-referrer";
     img.addEventListener("error", () => {
@@ -477,7 +479,7 @@ function createSpellCard(spellId) {
 
   const label = document.createElement("div");
   label.className = "label";
-  label.textContent = spell.name;
+  label.textContent = displayName;
 
   const readyChip = document.createElement("div");
   readyChip.className = "ready-chip";
@@ -497,6 +499,13 @@ function updateSpellCard(card, summary, spell) {
   const anyReady = summary.ready > 0;
   card.classList.toggle("ready", allReady);
   card.classList.toggle("cooling", !allReady);
+
+  // 로케일 변경 시 라벨/alt 재적용
+  const displayName = localizedSpellName(spell, getLocale());
+  const label = card.querySelector(".label");
+  if (label && label.textContent !== displayName) label.textContent = displayName;
+  const img = card.querySelector("img");
+  if (img && img.alt !== displayName) img.alt = displayName;
 
   const sweep = card.querySelector(".cooldown-sweep");
   const cdText = card.querySelector(".cooldown-text");
@@ -537,7 +546,7 @@ function showTooltip(card, spellId) {
   tip.replaceChildren();
 
   const h4 = document.createElement("h4");
-  h4.textContent = spell.name;
+  h4.textContent = localizedSpellName(spell, getLocale());
   tip.append(h4);
 
   const ul = document.createElement("ul");
