@@ -236,7 +236,7 @@ async function pollOnce(dirHandle) {
   const complete = combined.slice(0, lastNewline);
   residualBuffer = combined.slice(lastNewline + 1);
 
-  const lines = complete.split("\n");
+  const lines = complete.split(/\r?\n/);
   let dirty = false;
   for (const line of lines) {
     try {
@@ -311,6 +311,7 @@ function applyEvent(event) {
     buf.push({
       ts: event.timestamp,
       amount: event.amount,
+      overkill: event.overkill ?? 0,
       source: event.sourceName || "?",
       spell: event.spellName || "?",
     });
@@ -325,14 +326,18 @@ function applyEvent(event) {
     const damages = buf
       .filter(d => d.ts >= cutoff)
       .sort((a, b) => b.ts - a.ts);
+    // 킬링 블로우: overkill > 0 이벤트가 있으면 cause로 우선 (없으면 가장 최근 데미지).
+    const killingBlow = damages.find(d => d.overkill > 0) ?? damages[0] ?? null;
     const playerInfo = state.players[event.player];
     state.deaths.push({
       player: event.player,
       class: playerInfo?.class ?? null,
       timestamp: event.timestamp,
       damages,
+      killingBlow,
     });
-    if (state.deaths.length > DEATH_LIMIT) state.deaths.shift();
+    state.deaths.sort((a, b) => a.timestamp - b.timestamp);
+    while (state.deaths.length > DEATH_LIMIT) state.deaths.shift();
     return true;
   }
 
@@ -756,9 +761,9 @@ function createDeathRow(death) {
 
   const cause = document.createElement("span");
   cause.className = "death-cause";
-  if (death.damages.length > 0) {
-    const top = death.damages[0];
-    cause.textContent = `${top.spell} · ${formatNumber(top.amount)}`;
+  const blow = death.killingBlow ?? death.damages[0];
+  if (blow) {
+    cause.textContent = `${blow.spell} · ${formatNumber(blow.amount)}`;
   } else {
     cause.textContent = "—";
   }

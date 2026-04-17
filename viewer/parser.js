@@ -17,22 +17,26 @@ const TYPE_PLAYER = 0x400;
 // 0:sourceGUID 1:sourceName 2:sourceFlags 3:sourceRaidFlags
 // 4:destGUID   5:destName   6:destFlags   7:destRaidFlags
 // 8:spellId    9:spellName  10:spellSchool
-const IDX_SOURCE_GUID = 0;
 const IDX_SOURCE_NAME = 1;
 const IDX_SOURCE_FLAGS = 2;
-const IDX_DEST_GUID = 4;
 const IDX_DEST_NAME = 5;
 const IDX_DEST_FLAGS = 6;
 const IDX_SPELL_ID = 8;
 const IDX_SPELL_NAME = 9;
+const IDX_AURA_TYPE = 11;     // SPELL_AURA_APPLIED: prefix(8) + spell(3) → auraType는 항상 인덱스 11
+
+// advanced logging payload는 spell prefix 직후 17개 필드.
+// 첫 필드(infoGUID)는 항상 GUID — Player-/Creature-/Pet-/Vehicle-/Vignette- 등의 prefix를 가진다.
+const ADVANCED_PAYLOAD_LEN = 17;
+const GUID_RE = /^(Player|Creature|Pet|Vehicle|GameObject|Vignette)-/;
 
 const SPELL_EVENTS = new Set([
   "SPELL_CAST_SUCCESS",
   "SPELL_AURA_APPLIED",
-  "SPELL_INTERRUPT",
   "SPELL_DAMAGE",
   "SPELL_PERIODIC_DAMAGE",
   "RANGE_DAMAGE",
+  "SPELL_INSTAKILL",
 ]);
 
 const NON_SPELL_EVENTS = new Set([
@@ -41,9 +45,13 @@ const NON_SPELL_EVENTS = new Set([
   "ENCOUNTER_END",
   "SWING_DAMAGE",
   "SWING_DAMAGE_LANDED",
+  "ENVIRONMENTAL_DAMAGE",
 ]);
 
 export function parseLine(line) {
+  if (!line) return null;
+  // Windows CRLF 방어 — 파일 분할이 \n만 기준이면 라인 끝에 \r이 남음.
+  if (line.charCodeAt(line.length - 1) === 13) line = line.slice(0, -1);
   if (!line) return null;
 
   const sepIdx = line.indexOf("  ");
@@ -85,7 +93,7 @@ export function parseLine(line) {
   }
 
   if (eventName === "UNIT_DIED") {
-    // UNIT_DIED,sourceGUID,sourceName,sourceFlags,sourceRaidFlags,destGUID,destName,destFlags,destRaidFlags
+    // UNIT_DIED,sourceGUID,sourceName,sourceFlags,sourceRaidFlags,destGUID,destName,destFlags,destRaidFlags[,recapID]
     const destFlags = parseHex(fields[IDX_DEST_FLAGS]);
     if (!(destFlags & AFFIL_MASK)) return null;
     if (!(destFlags & TYPE_PLAYER)) return null;
@@ -98,24 +106,65 @@ export function parseLine(line) {
     };
   }
 
-  if (eventName === "SWING_DAMAGE" || eventName === "SWING_DAMAGE_LANDED") {
-    // SWING_DAMAGE,sourceGUID,sourceName,sourceFlags,sourceRaidFlags,destGUID,destName,destFlags,destRaidFlags,advanced...amount,...
+  if (eventName === "SPELL_INSTAKILL") {
+    // SPELL_INSTAKILL,prefix(8),spell(3) — 즉사 메커닉 (예: 광폭화 와이프).
+    if (fields.length < IDX_SPELL_ID + 1) return null;
     const destFlags = parseHex(fields[IDX_DEST_FLAGS]);
     if (!(destFlags & AFFIL_MASK)) return null;
     if (!(destFlags & TYPE_PLAYER)) return null;
     const destName = fields[IDX_DEST_NAME];
     if (!destName) return null;
-    // SWING events: 처음 8개 필드 + advanced(17개) + amount, base, overkill, ...
-    // amount는 advanced 직후 첫 숫자. 단순화: 뒤에서부터 추적.
-    const amount = extractDamageAmount(fields, 8);
-    if (amount == null) return null;
     return {
       type: "damage",
       timestamp,
       target: stripRealm(destName),
-      sourceName: stripRealm(fields[IDX_SOURCE_NAME] ?? ""),
+      sourceName: stripRealm(fields[IDX_SOURCE_NAME] ?? "") || "Environment",
+      spellName: fields[IDX_SPELL_NAME] ?? "Instakill",
+      amount: 0,
+      overkill: 1,            // 즉사는 항상 킬링 블로우로 취급
+      instakill: true,
+    };
+  }
+
+  if (eventName === "SWING_DAMAGE" || eventName === "SWING_DAMAGE_LANDED") {
+    // 처음 8개 prefix + (advanced 17 옵션) + amount, base, overkill, school, resisted, blocked, absorbed, critical, ...
+    const destFlags = parseHex(fields[IDX_DEST_FLAGS]);
+    if (!(destFlags & AFFIL_MASK)) return null;
+    if (!(destFlags & TYPE_PLAYER)) return null;
+    const destName = fields[IDX_DEST_NAME];
+    if (!destName) return null;
+    const dmg = extractDamage(fields, 8);
+    if (!dmg) return null;
+    return {
+      type: "damage",
+      timestamp,
+      target: stripRealm(destName),
+      sourceName: stripRealm(fields[IDX_SOURCE_NAME] ?? "") || "Melee",
       spellName: "Melee",
-      amount,
+      amount: dmg.amount,
+      overkill: dmg.overkill,
+    };
+  }
+
+  if (eventName === "ENVIRONMENTAL_DAMAGE") {
+    // ENVIRONMENTAL_DAMAGE,prefix(8),environmentalType,amount,base,overkill,school,...
+    const destFlags = parseHex(fields[IDX_DEST_FLAGS]);
+    if (!(destFlags & AFFIL_MASK)) return null;
+    if (!(destFlags & TYPE_PLAYER)) return null;
+    const destName = fields[IDX_DEST_NAME];
+    if (!destName) return null;
+    // environmentalType은 prefix 직후 인덱스 8에 위치 (advanced payload는 환경 데미지에는 보통 포함되지 않으나 방어적으로 검사).
+    const envType = fields[8] ?? "Environment";
+    const dmg = extractDamage(fields, 9);
+    if (!dmg) return null;
+    return {
+      type: "damage",
+      timestamp,
+      target: stripRealm(destName),
+      sourceName: prettyEnvironmentalType(envType),
+      spellName: prettyEnvironmentalType(envType),
+      amount: dmg.amount,
+      overkill: dmg.overkill,
     };
   }
 
@@ -131,20 +180,21 @@ export function parseLine(line) {
     if (!(destFlags & TYPE_PLAYER)) return null;
     const destName = fields[IDX_DEST_NAME];
     if (!destName) return null;
-    const amount = extractDamageAmount(fields, IDX_SPELL_ID + 3);
-    if (amount == null) return null;
+    const dmg = extractDamage(fields, IDX_SPELL_ID + 3);
+    if (!dmg) return null;
     return {
       type: "damage",
       timestamp,
       target: stripRealm(destName),
       sourceName: stripRealm(rawSourceName ?? ""),
       spellName: fields[IDX_SPELL_NAME] ?? "",
-      amount,
+      amount: dmg.amount,
+      overkill: dmg.overkill,
       periodic: eventName === "SPELL_PERIODIC_DAMAGE",
     };
   }
 
-  // SPELL_CAST_SUCCESS / SPELL_AURA_APPLIED / SPELL_INTERRUPT
+  // SPELL_CAST_SUCCESS / SPELL_AURA_APPLIED
   if (!(sourceFlags & AFFIL_MASK)) return null;
   if (!rawSourceName) return null;
   const player = stripRealm(rawSourceName);
@@ -156,52 +206,51 @@ export function parseLine(line) {
   let type;
   if (eventName === "SPELL_CAST_SUCCESS") {
     type = "cast";
-  } else if (eventName === "SPELL_AURA_APPLIED") {
-    const auraType = fields[fields.length - 1];
+  } else { // SPELL_AURA_APPLIED
+    // 흡수 보호막 등은 BUFF 뒤에 amount 필드가 추가됨. 항상 인덱스 11에서 읽는다.
+    const auraType = fields[IDX_AURA_TYPE];
     if (auraType !== "BUFF") return null;
     const mapped = AuraToSpell[spellIdRaw];
     if (!mapped) return null;
     spellId = mapped;
     type = "aura";
-  } else {
-    type = "interrupt";
   }
 
   const spell = SpellData[spellId];
   if (!spell) return null;
 
-  const out = {
+  return {
     type,
     player,
     class: spell.class,
     spellId,
     timestamp,
   };
-
-  if (type === "interrupt") {
-    const extraIdx = 11;
-    if (fields.length > extraIdx + 1) {
-      out.targetSpellId = Number(fields[extraIdx]);
-      out.targetSpellName = fields[extraIdx + 1];
-    }
-  }
-
-  return out;
 }
 
-// advanced logging이 켜져 있으면 spell prefix 뒤에 17개의 advanced 필드가 들어옴.
-// amount 후보를 뒤에서부터 스캔: 큰 정수 + 그 뒤에 다른 정수가 이어지면 amount로 간주.
-// 단순화: spell prefix 뒤 첫 큰 숫자를 amount로 본다.
-function extractDamageAmount(fields, suffixStart) {
-  // 시도 1: advanced logging on이면 suffixStart + 17 위치가 amount
-  // 시도 2: advanced off면 suffixStart 위치가 amount
-  const candidates = [suffixStart + 17, suffixStart];
-  for (const idx of candidates) {
-    if (idx >= fields.length) continue;
-    const v = Number(fields[idx]);
-    if (Number.isFinite(v) && v >= 0) return v;
-  }
-  return null;
+// ============================================================
+// damage 페이로드 파서
+// ============================================================
+// advanced logging 여부를 첫 advanced 필드(infoGUID)의 GUID 패턴으로 판별.
+// suffixStart는 spell prefix 직후 인덱스 (= 11 for SPELL_DAMAGE, 8 for SWING_DAMAGE, 9 for ENVIRONMENTAL_DAMAGE)
+// returns { amount, overkill } | null
+function extractDamage(fields, suffixStart) {
+  const advancedHere = fields.length > suffixStart && GUID_RE.test(fields[suffixStart] ?? "");
+  const dmgIdx = advancedHere ? suffixStart + ADVANCED_PAYLOAD_LEN : suffixStart;
+  if (dmgIdx >= fields.length) return null;
+  const amount = Number(fields[dmgIdx]);
+  if (!Number.isFinite(amount) || amount < 0) return null;
+  // amount, baseAmount, overkill — overkill은 +2 위치
+  const overkillRaw = fields[dmgIdx + 2];
+  let overkill = Number(overkillRaw);
+  if (!Number.isFinite(overkill)) overkill = 0;
+  return { amount, overkill };
+}
+
+function prettyEnvironmentalType(t) {
+  // WoW envType 값 예: Falling, Drowning, Fatigue, Fire, Lava, Slime
+  if (!t) return "Environment";
+  return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
 }
 
 // -------- helpers --------
