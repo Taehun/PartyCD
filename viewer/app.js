@@ -18,6 +18,7 @@ const TRANSIENT_ALERT_THRESHOLD = 10;  // 연속 ~5s 넘으면 err로 표시
 const IDB_NAME = "partycd-viewer";
 const IDB_STORE = "handles";
 const IDB_KEY = "logs-dir";
+const OVERLAY_STORAGE_KEY = "partycd-overlay";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const SKULL_PATH = "M12 2a8 8 0 0 0-8 8c0 3.4 2.1 6.3 5 7.5V20a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-2.5c2.9-1.2 5-4.1 5-7.5a8 8 0 0 0-8-8zM9 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm6 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z";
@@ -56,12 +57,14 @@ const expandedDeaths = new Set();
 async function main() {
   setLocale(detectLocale());
   initLangToggle();
+  initOverlayToggle();
 
   if (new URLSearchParams(location.search).get("demo") === "1") {
     loadDemoState();
     document.getElementById("setup").hidden = true;
     document.getElementById("viewer").hidden = false;
     document.getElementById("change-folder").hidden = false;
+    document.getElementById("overlay-toggle").hidden = false;
     setStatus("DEMO MODE", "warn");
     renderFull();
     setInterval(renderTick, RENDER_INTERVAL_MS);
@@ -192,6 +195,7 @@ function startWatching(dirHandle) {
   document.getElementById("setup").hidden = true;
   document.getElementById("viewer").hidden = false;
   document.getElementById("change-folder").hidden = false;
+  document.getElementById("overlay-toggle").hidden = false;
 
   if (watchTimer) clearInterval(watchTimer);
 
@@ -388,6 +392,7 @@ function renderFull() {
   updateUtilityCard("heroism");
   updateUtilityCard("battlerez");
   renderDeathLog();
+  renderOverlay();
   renderTick();
 }
 
@@ -399,6 +404,12 @@ function renderTick() {
     if (!spell) return;
     const summary = collectSpellSummary(spellId);
     updateSpellCard(card, summary, spell, now);
+  });
+  document.querySelectorAll(".overlay-spell").forEach(node => {
+    const spellId = Number(node.dataset.spellId);
+    const spell = SpellData[spellId];
+    if (!spell) return;
+    updateOverlaySpell(node, collectSpellSummary(spellId), spell);
   });
   updateUtilityCard("heroism");
   updateUtilityCard("battlerez");
@@ -863,6 +874,181 @@ function createDeathRow(death) {
 
   row.append(header, detail);
   return row;
+}
+
+// ============================================================
+// Overlay mode (omniCD 스타일 플레이어 중심 view)
+// ============================================================
+function initOverlayToggle() {
+  const toggleBtn = document.getElementById("overlay-toggle");
+  const exitBtn = document.getElementById("overlay-exit");
+  toggleBtn.addEventListener("click", () => setOverlayMode(true));
+  exitBtn.addEventListener("click", () => setOverlayMode(false));
+
+  const saved = localStorage.getItem(OVERLAY_STORAGE_KEY) === "1";
+  if (saved) setOverlayMode(true, { skipSave: true });
+}
+
+function setOverlayMode(on, { skipSave } = {}) {
+  document.body.classList.toggle("overlay-mode", on);
+  if (!skipSave) localStorage.setItem(OVERLAY_STORAGE_KEY, on ? "1" : "0");
+  if (on) renderOverlay();
+}
+
+function renderOverlay() {
+  const container = document.querySelector("#overlay-view .overlay-player-list");
+  if (!container) return;
+
+  // 공대원 이름순 정렬 — 플레이어 클래스 + 시전 이력 기준으로 행 생성.
+  const playerEntries = Object.entries(state.players)
+    .filter(([, p]) => Object.keys(p.cooldowns).length > 0)
+    .sort(([a], [b]) => a.localeCompare(b));
+
+  const existing = new Map();
+  for (const node of container.children) existing.set(node.dataset.player, node);
+
+  const newOrder = [];
+  for (const [name, p] of playerEntries) {
+    let row = existing.get(name);
+    if (!row) row = createOverlayRow(name, p);
+    else updateOverlayRow(row, name, p);
+    newOrder.push(row);
+    existing.delete(name);
+  }
+  for (const stale of existing.values()) stale.remove();
+
+  for (let i = 0; i < newOrder.length; i++) {
+    if (container.children[i] !== newOrder[i]) {
+      container.insertBefore(newOrder[i], container.children[i] ?? null);
+    }
+  }
+}
+
+function createOverlayRow(playerName, player) {
+  const row = document.createElement("div");
+  row.className = "overlay-player-row";
+  row.dataset.player = playerName;
+  const color = CLASS_COLORS[player.class] ?? "#888";
+  row.style.borderLeftColor = color;
+
+  const nameEl = document.createElement("div");
+  nameEl.className = "overlay-player-name";
+  nameEl.textContent = playerName;
+  nameEl.style.color = color;
+
+  const spellsEl = document.createElement("div");
+  spellsEl.className = "overlay-spells";
+
+  row.append(nameEl, spellsEl);
+  updateOverlayRow(row, playerName, player);
+  return row;
+}
+
+function updateOverlayRow(row, playerName, player) {
+  const nameEl = row.querySelector(".overlay-player-name");
+  const color = CLASS_COLORS[player.class] ?? "#888";
+  nameEl.style.color = color;
+  nameEl.textContent = playerName;
+  row.style.borderLeftColor = color;
+
+  const spellsEl = row.querySelector(".overlay-spells");
+  // 이 플레이어가 지금까지 시전한 추적 스펠을 카테고리 고정 순서로 나열.
+  const knownIds = Object.keys(player.cooldowns).map(Number);
+  const order = [
+    ...CATEGORY_SPELL_ORDER.SURVIVAL,
+    ...CATEGORY_SPELL_ORDER.RAID_CD,
+    ...CATEGORY_SPELL_ORDER.HEROISM,
+    ...CATEGORY_SPELL_ORDER.BATTLEREZ,
+  ].filter(id => knownIds.includes(id));
+
+  const existing = new Map();
+  for (const node of spellsEl.children) existing.set(Number(node.dataset.spellId), node);
+
+  const ordered = [];
+  for (const spellId of order) {
+    let node = existing.get(spellId);
+    if (!node) node = createOverlaySpell(spellId);
+    ordered.push(node);
+    existing.delete(spellId);
+  }
+  for (const stale of existing.values()) stale.remove();
+
+  for (let i = 0; i < ordered.length; i++) {
+    if (spellsEl.children[i] !== ordered[i]) {
+      spellsEl.insertBefore(ordered[i], spellsEl.children[i] ?? null);
+    }
+  }
+
+  for (const node of ordered) {
+    const spellId = Number(node.dataset.spellId);
+    updateOverlaySpell(node, collectSpellSummary(spellId), SpellData[spellId]);
+  }
+}
+
+function createOverlaySpell(spellId) {
+  const spell = SpellData[spellId];
+  const node = document.createElement("div");
+  node.className = "overlay-spell";
+  node.dataset.spellId = spellId;
+
+  const displayName = localizedSpellName(spell, getLocale());
+
+  const url = iconUrl(spell.iconName);
+  if (url) {
+    const img = document.createElement("img");
+    img.src = url;
+    img.alt = displayName;
+    img.loading = "lazy";
+    img.referrerPolicy = "no-referrer";
+    img.addEventListener("error", () => {
+      img.remove();
+      const abbr = document.createElement("div");
+      abbr.className = "abbr";
+      abbr.textContent = spell.abbr ?? spell.name.slice(0, 2).toUpperCase();
+      node.prepend(abbr);
+    }, { once: true });
+    node.append(img);
+  } else {
+    const abbr = document.createElement("div");
+    abbr.className = "abbr";
+    abbr.textContent = spell.abbr ?? spell.name.slice(0, 2).toUpperCase();
+    node.append(abbr);
+  }
+
+  const sweep = document.createElement("div");
+  sweep.className = "cooldown-sweep";
+  const cdText = document.createElement("div");
+  cdText.className = "cooldown-text";
+  node.append(sweep, cdText);
+
+  node.addEventListener("mouseenter", () => showTooltip(node, spellId));
+  node.addEventListener("mouseleave", hideTooltip);
+  node.addEventListener("mousemove", positionTooltip);
+  return node;
+}
+
+function updateOverlaySpell(node, summary, spell) {
+  const allReady = summary.total > 0 && summary.ready === summary.total;
+  node.classList.toggle("ready", allReady);
+  node.classList.toggle("cooling", !allReady);
+
+  const displayName = localizedSpellName(spell, getLocale());
+  const img = node.querySelector("img");
+  if (img && img.alt !== displayName) img.alt = displayName;
+
+  const sweep = node.querySelector(".cooldown-sweep");
+  const cdText = node.querySelector(".cooldown-text");
+
+  if (allReady) {
+    cdText.textContent = "";
+    sweep.style.background = "none";
+  } else {
+    const minRem = summary.minRemaining;
+    const total = spell.cooldown * 1000;
+    const pct = Math.min(100, (minRem / total) * 100);
+    sweep.style.background = `conic-gradient(transparent ${100 - pct}%, rgba(0,0,0,0.72) ${100 - pct}%)`;
+    cdText.textContent = formatTime(minRem);
+  }
 }
 
 // ============================================================

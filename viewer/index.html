@@ -33,6 +33,13 @@
         </button>
         <ul id="lang-menu" class="lang-menu" hidden></ul>
       </div>
+      <button id="overlay-toggle" class="icon-btn" hidden>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="12" height="12" rx="1"/>
+          <rect x="9" y="9" width="12" height="12" rx="1" fill="currentColor" fill-opacity="0.12"/>
+        </svg>
+        <span data-i18n="btn_overlay"></span>
+      </button>
       <button id="change-folder" class="icon-btn" hidden title="Change folder">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
@@ -41,6 +48,14 @@
       </button>
     </div>
   </header>
+
+  <button id="overlay-exit" class="overlay-exit-btn">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18"/>
+      <line x1="6" y1="6" x2="18" y2="18"/>
+    </svg>
+    <span data-i18n="btn_dashboard"></span>
+  </button>
 
   <div id="setup">
     <div class="setup-box">
@@ -124,6 +139,11 @@
       <div class="death-list"></div>
       <p class="grid-empty" data-i18n="deathlog_empty"></p>
     </section>
+
+    <aside id="overlay-view">
+      <div class="overlay-player-list"></div>
+      <p class="overlay-empty" data-i18n="grid_empty"></p>
+    </aside>
   </main>
 
   <div id="tooltip" class="tooltip" hidden></div>

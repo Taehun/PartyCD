@@ -18,6 +18,8 @@ const translations = {
     btn_pick: "WoW Logs 폴더 선택",
     btn_pick_reauth: "폴더 다시 선택 (재승인)",
     btn_change_folder: "폴더 변경",
+    btn_overlay: "오버레이 모드",
+    btn_dashboard: "대시보드로 복귀",
 
     setup_title: "시작하기",
     setup_step1: "WoW에서 /combatlog 을 입력하여 전투 로그를 켭니다.",
@@ -68,6 +70,8 @@ const translations = {
     btn_pick: "Select WoW Logs Folder",
     btn_pick_reauth: "Reselect Folder (Reauthorize)",
     btn_change_folder: "Change Folder",
+    btn_overlay: "Overlay mode",
+    btn_dashboard: "Back to dashboard",
 
     setup_title: "Get Started",
     setup_step1: "Type /combatlog in WoW to enable combat logging.",

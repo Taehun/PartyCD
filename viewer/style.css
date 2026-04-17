@@ -808,6 +808,173 @@ main#viewer {
 }
 
 /* ============================================================
+   Overlay mode — omniCD-style compact player-centric view
+   ============================================================ */
+body.overlay-mode {
+  background: rgba(10, 13, 20, 0.82);
+}
+body.overlay-mode #topbar,
+body.overlay-mode #setup,
+body.overlay-mode .grid-panel,
+body.overlay-mode .utility-row,
+body.overlay-mode #deathlog {
+  display: none;
+}
+body.overlay-mode main#viewer {
+  padding: 8px;
+  gap: 0;
+  max-width: 480px;
+  margin: 0;
+}
+body.overlay-mode #overlay-view {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+body.overlay-mode #overlay-exit {
+  display: inline-flex;
+}
+body.overlay-mode .spell-icon .count-badge,
+body.overlay-mode .spell-icon .ready-badge {
+  display: none !important;
+}
+
+.overlay-exit-btn {
+  position: fixed;
+  top: 6px;
+  right: 6px;
+  z-index: 500;
+  display: none;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  background: rgba(22, 27, 36, 0.85);
+  color: var(--bronze);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(2px);
+  transition: color 0.15s, border-color 0.15s;
+}
+body.overlay-mode .overlay-exit-btn {
+  display: inline-flex;
+}
+.overlay-exit-btn:hover {
+  color: var(--gold);
+  border-color: var(--border-gold);
+}
+
+#overlay-view {
+  display: none;
+}
+
+.overlay-empty {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--bronze-gray);
+  text-align: center;
+  padding: 10px 0;
+  display: none;
+}
+.overlay-player-list:empty + .overlay-empty { display: block; }
+
+.overlay-player-row {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 3px 6px;
+  background: rgba(22, 27, 36, 0.6);
+  border-left: 2px solid var(--border);
+  border-radius: 2px;
+}
+
+.overlay-player-name {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.overlay-spells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+/* Compact spell icon variant for overlay. Reuses .spell-icon inner structure. */
+.overlay-spell {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border-gold);
+  border-radius: 2px;
+  background: var(--bg-surface);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s, filter 0.3s;
+}
+.overlay-spell img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+.overlay-spell .abbr {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 10px;
+  color: var(--cream);
+  background: var(--bg-surface);
+}
+.overlay-spell .cooldown-sweep {
+  position: absolute;
+  inset: 0;
+  background: conic-gradient(transparent 0%, rgba(0, 0, 0, 0.72) 0%);
+  pointer-events: none;
+  transition: background 150ms linear;
+}
+.overlay-spell .cooldown-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 11px;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 1), 0 0 4px rgba(0, 0, 0, 0.9);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.overlay-spell.cooling { filter: saturate(0.45) brightness(0.72); }
+.overlay-spell.cooling .abbr { color: var(--bronze-gray); }
+.overlay-spell.ready {
+  border-color: var(--gold);
+  box-shadow: 0 0 6px rgba(212, 175, 55, 0.55);
+  animation: ready-pulse 2.4s ease-in-out infinite;
+}
+.overlay-spell.ready .cooldown-sweep,
+.overlay-spell.ready .cooldown-text {
+  display: none;
+}
+
+/* ============================================================
    Responsive
    ============================================================ */
 @media (max-width: 800px) {
