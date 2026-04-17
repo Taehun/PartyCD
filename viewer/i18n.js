@@ -21,6 +21,10 @@ const translations = {
     btn_overlay: "오버레이 모드",
     btn_dashboard: "대시보드로 복귀",
 
+    overlay_label_survival: "외생기",
+    overlay_label_raidcd: "공대 생존기",
+    overlay_label_battlerez: "전투 부활",
+
     setup_title: "시작하기",
     setup_step1: "WoW에서 /combatlog 을 입력하여 전투 로그를 켭니다.",
     setup_step2: "아래 버튼을 눌러 World of Warcraft/_retail_/Logs 폴더를 선택합니다.",
@@ -72,6 +76,10 @@ const translations = {
     btn_change_folder: "Change Folder",
     btn_overlay: "Overlay mode",
     btn_dashboard: "Back to dashboard",
+
+    overlay_label_survival: "External CDs",
+    overlay_label_raidcd: "Raid CDs",
+    overlay_label_battlerez: "Battle Rez",
 
     setup_title: "Get Started",
     setup_step1: "Type /combatlog in WoW to enable combat logging.",

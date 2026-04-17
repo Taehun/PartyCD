@@ -405,12 +405,16 @@ function renderTick() {
     const summary = collectSpellSummary(spellId);
     updateSpellCard(card, summary, spell, now);
   });
-  document.querySelectorAll(".overlay-spell").forEach(node => {
-    const spellId = Number(node.dataset.spellId);
-    const spell = SpellData[spellId];
-    if (!spell) return;
-    updateOverlaySpell(node, collectSpellSummary(spellId), spell);
-  });
+  if (document.body.classList.contains("overlay-mode")) {
+    const now2 = Date.now();
+    document.querySelectorAll(".overlay-instance").forEach(node => {
+      const spellId = Number(node.dataset.spellId);
+      const playerName = node.dataset.player;
+      const player = state.players[playerName];
+      if (!player) return;
+      updateOverlayInstance(node, spellId, playerName, player, now2);
+    });
+  }
   updateUtilityCard("heroism");
   updateUtilityCard("battlerez");
 }
@@ -895,101 +899,122 @@ function setOverlayMode(on, { skipSave } = {}) {
   if (on) renderOverlay();
 }
 
+// 오버레이에 표시할 카테고리. HEROISM은 1회성이라 제외.
+const OVERLAY_CATEGORIES = [
+  { key: "SURVIVAL",  cssMod: "survival",  labelKey: "overlay_label_survival" },
+  { key: "RAID_CD",   cssMod: "raidcd",    labelKey: "overlay_label_raidcd" },
+  { key: "BATTLEREZ", cssMod: "battlerez", labelKey: "overlay_label_battlerez" },
+];
+
 function renderOverlay() {
-  const container = document.querySelector("#overlay-view .overlay-player-list");
+  const container = document.getElementById("overlay-view");
   if (!container) return;
 
-  // 공대원 이름순 정렬 — 플레이어 클래스 + 시전 이력 기준으로 행 생성.
-  const playerEntries = Object.entries(state.players)
-    .filter(([, p]) => Object.keys(p.cooldowns).length > 0)
-    .sort(([a], [b]) => a.localeCompare(b));
+  // 섹션은 고정 순서로 3개. 없으면 생성, 있으면 재사용.
+  const existingSections = new Map();
+  for (const node of container.children) existingSections.set(node.dataset.category, node);
 
-  const existing = new Map();
-  for (const node of container.children) existing.set(node.dataset.player, node);
-
-  const newOrder = [];
-  for (const [name, p] of playerEntries) {
-    let row = existing.get(name);
-    if (!row) row = createOverlayRow(name, p);
-    else updateOverlayRow(row, name, p);
-    newOrder.push(row);
-    existing.delete(name);
+  const orderedSections = [];
+  for (const cat of OVERLAY_CATEGORIES) {
+    let section = existingSections.get(cat.key);
+    if (!section) section = createOverlaySection(cat);
+    else updateOverlaySectionLabel(section, cat);
+    orderedSections.push(section);
+    existingSections.delete(cat.key);
   }
-  for (const stale of existing.values()) stale.remove();
+  for (const stale of existingSections.values()) stale.remove();
 
-  for (let i = 0; i < newOrder.length; i++) {
-    if (container.children[i] !== newOrder[i]) {
-      container.insertBefore(newOrder[i], container.children[i] ?? null);
+  for (let i = 0; i < orderedSections.length; i++) {
+    if (container.children[i] !== orderedSections[i]) {
+      container.insertBefore(orderedSections[i], container.children[i] ?? null);
     }
   }
+
+  for (const section of orderedSections) {
+    updateOverlaySectionInstances(section);
+  }
 }
 
-function createOverlayRow(playerName, player) {
-  const row = document.createElement("div");
-  row.className = "overlay-player-row";
-  row.dataset.player = playerName;
-  const color = CLASS_COLORS[player.class] ?? "#888";
-  row.style.borderLeftColor = color;
+function createOverlaySection(cat) {
+  const section = document.createElement("div");
+  section.className = `overlay-section overlay-section--${cat.cssMod}`;
+  section.dataset.category = cat.key;
 
-  const nameEl = document.createElement("div");
-  nameEl.className = "overlay-player-name";
-  nameEl.textContent = playerName;
-  nameEl.style.color = color;
+  const title = document.createElement("div");
+  title.className = "overlay-section-title";
+  title.dataset.i18n = cat.labelKey;
+  title.textContent = t(cat.labelKey);
 
-  const spellsEl = document.createElement("div");
-  spellsEl.className = "overlay-spells";
+  const instances = document.createElement("div");
+  instances.className = "overlay-instances";
 
-  row.append(nameEl, spellsEl);
-  updateOverlayRow(row, playerName, player);
-  return row;
+  section.append(title, instances);
+  return section;
 }
 
-function updateOverlayRow(row, playerName, player) {
-  const nameEl = row.querySelector(".overlay-player-name");
-  const color = CLASS_COLORS[player.class] ?? "#888";
-  nameEl.style.color = color;
-  nameEl.textContent = playerName;
-  row.style.borderLeftColor = color;
+function updateOverlaySectionLabel(section, cat) {
+  const title = section.querySelector(".overlay-section-title");
+  if (title) title.textContent = t(cat.labelKey);
+}
 
-  const spellsEl = row.querySelector(".overlay-spells");
-  // 이 플레이어가 지금까지 시전한 추적 스펠을 카테고리 고정 순서로 나열.
-  const knownIds = Object.keys(player.cooldowns).map(Number);
-  const order = [
-    ...CATEGORY_SPELL_ORDER.SURVIVAL,
-    ...CATEGORY_SPELL_ORDER.RAID_CD,
-    ...CATEGORY_SPELL_ORDER.HEROISM,
-    ...CATEGORY_SPELL_ORDER.BATTLEREZ,
-  ].filter(id => knownIds.includes(id));
+// 섹션의 인스턴스(player-spell 페어) 아이콘을 갱신. 고정 순서: 스펠 ID → 플레이어 이름.
+function updateOverlaySectionInstances(section) {
+  const category = section.dataset.category;
+  const instancesEl = section.querySelector(".overlay-instances");
+
+  // 이 카테고리에 속한 스펠 × 그 스펠을 시전한 플레이어 조합을 전부 열거.
+  const pairs = [];
+  for (const spellId of CATEGORY_SPELL_ORDER[category]) {
+    for (const [playerName, p] of Object.entries(state.players)) {
+      if (p.class !== SpellData[spellId].class) continue;
+      if (p.cooldowns[spellId] === undefined) continue;
+      pairs.push({ spellId, playerName, player: p });
+    }
+  }
+  // 정렬: 스펠 카테고리 순서(이미 CATEGORY_SPELL_ORDER로 확정) → 플레이어 이름
+  pairs.sort((a, b) => {
+    if (a.spellId !== b.spellId) {
+      return CATEGORY_SPELL_ORDER[category].indexOf(a.spellId) - CATEGORY_SPELL_ORDER[category].indexOf(b.spellId);
+    }
+    return a.playerName.localeCompare(b.playerName);
+  });
 
   const existing = new Map();
-  for (const node of spellsEl.children) existing.set(Number(node.dataset.spellId), node);
+  for (const node of instancesEl.children) existing.set(node.dataset.key, node);
 
   const ordered = [];
-  for (const spellId of order) {
-    let node = existing.get(spellId);
-    if (!node) node = createOverlaySpell(spellId);
-    ordered.push(node);
-    existing.delete(spellId);
+  for (const { spellId, playerName, player } of pairs) {
+    const key = `${playerName}:${spellId}`;
+    let node = existing.get(key);
+    if (!node) node = createOverlayInstance(spellId, playerName, player);
+    ordered.push({ node, spellId, playerName, player });
+    existing.delete(key);
   }
   for (const stale of existing.values()) stale.remove();
 
   for (let i = 0; i < ordered.length; i++) {
-    if (spellsEl.children[i] !== ordered[i]) {
-      spellsEl.insertBefore(ordered[i], spellsEl.children[i] ?? null);
+    if (instancesEl.children[i] !== ordered[i].node) {
+      instancesEl.insertBefore(ordered[i].node, instancesEl.children[i] ?? null);
     }
   }
 
-  for (const node of ordered) {
-    const spellId = Number(node.dataset.spellId);
-    updateOverlaySpell(node, collectSpellSummary(spellId), SpellData[spellId]);
+  const now = Date.now();
+  for (const entry of ordered) {
+    updateOverlayInstance(entry.node, entry.spellId, entry.playerName, entry.player, now);
   }
 }
 
-function createOverlaySpell(spellId) {
+function createOverlayInstance(spellId, playerName, player) {
   const spell = SpellData[spellId];
   const node = document.createElement("div");
-  node.className = "overlay-spell";
+  node.className = "overlay-instance";
   node.dataset.spellId = spellId;
+  node.dataset.player = playerName;
+  node.dataset.key = `${playerName}:${spellId}`;
+
+  const classColor = CLASS_COLORS[player.class] ?? "#888";
+  node.style.borderColor = classColor;
+  node.style.color = classColor;
 
   const displayName = localizedSpellName(spell, getLocale());
 
@@ -997,7 +1022,7 @@ function createOverlaySpell(spellId) {
   if (url) {
     const img = document.createElement("img");
     img.src = url;
-    img.alt = displayName;
+    img.alt = `${displayName} — ${playerName}`;
     img.loading = "lazy";
     img.referrerPolicy = "no-referrer";
     img.addEventListener("error", () => {
@@ -1021,33 +1046,46 @@ function createOverlaySpell(spellId) {
   cdText.className = "cooldown-text";
   node.append(sweep, cdText);
 
+  // 호버 툴팁: 이 스펠의 집계된 전체 소유자 목록을 그대로 보여줌.
   node.addEventListener("mouseenter", () => showTooltip(node, spellId));
   node.addEventListener("mouseleave", hideTooltip);
   node.addEventListener("mousemove", positionTooltip);
   return node;
 }
 
-function updateOverlaySpell(node, summary, spell) {
-  const allReady = summary.total > 0 && summary.ready === summary.total;
-  node.classList.toggle("ready", allReady);
-  node.classList.toggle("cooling", !allReady);
+function updateOverlayInstance(node, spellId, playerName, player, now) {
+  const spell = SpellData[spellId];
+  const cd = player.cooldowns[spellId];
+  if (!cd) return;
+
+  const remaining = Math.max(0, cd.expiresAt - now);
+  const ready = remaining === 0;
+  node.classList.toggle("ready", ready);
+  node.classList.toggle("cooling", !ready);
+
+  // 클래스 색 borderColor는 플레이어 식별용, READY glow는 currentColor 기반이라 자연스럽게 빛남.
+  const classColor = CLASS_COLORS[player.class] ?? "#888";
+  if (node.style.borderColor !== classColor) {
+    node.style.borderColor = classColor;
+    node.style.color = classColor;
+  }
 
   const displayName = localizedSpellName(spell, getLocale());
   const img = node.querySelector("img");
-  if (img && img.alt !== displayName) img.alt = displayName;
+  const expectedAlt = `${displayName} — ${playerName}`;
+  if (img && img.alt !== expectedAlt) img.alt = expectedAlt;
 
   const sweep = node.querySelector(".cooldown-sweep");
   const cdText = node.querySelector(".cooldown-text");
 
-  if (allReady) {
+  if (ready) {
     cdText.textContent = "";
     sweep.style.background = "none";
   } else {
-    const minRem = summary.minRemaining;
     const total = spell.cooldown * 1000;
-    const pct = Math.min(100, (minRem / total) * 100);
-    sweep.style.background = `conic-gradient(transparent ${100 - pct}%, rgba(0,0,0,0.72) ${100 - pct}%)`;
-    cdText.textContent = formatTime(minRem);
+    const pct = Math.min(100, (remaining / total) * 100);
+    sweep.style.background = `conic-gradient(transparent ${100 - pct}%, rgba(0,0,0,0.75) ${100 - pct}%)`;
+    cdText.textContent = formatTime(remaining);
   }
 }
 

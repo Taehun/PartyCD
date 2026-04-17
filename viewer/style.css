@@ -871,65 +871,90 @@ body.overlay-mode .overlay-exit-btn {
   display: none;
 }
 
-.overlay-empty {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: var(--bronze-gray);
-  text-align: center;
-  padding: 10px 0;
-  display: none;
-}
-.overlay-player-list:empty + .overlay-empty { display: block; }
 
-.overlay-player-row {
+.overlay-section {
   display: grid;
-  grid-template-columns: 96px 1fr;
-  gap: 8px;
-  align-items: center;
-  padding: 3px 6px;
-  background: rgba(22, 27, 36, 0.6);
-  border-left: 2px solid var(--border);
+  grid-template-columns: 68px 1fr;
+  gap: 6px;
+  align-items: start;
+  padding: 3px 4px;
+  background: rgba(22, 27, 36, 0.55);
+  border-left: 2px solid;
   border-radius: 2px;
 }
+.overlay-section--survival  { border-left-color: var(--acc-survival); }
+.overlay-section--raidcd    { border-left-color: var(--acc-raidcd); }
+.overlay-section--battlerez { border-left-color: var(--acc-battlerez); }
 
-.overlay-player-name {
-  font-family: var(--font-body);
+.overlay-section-title {
+  font-family: var(--font-display);
   font-weight: 700;
-  font-size: 12px;
-  line-height: 1.2;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding-top: 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 }
+.overlay-section--survival  .overlay-section-title { color: var(--acc-survival); }
+.overlay-section--raidcd    .overlay-section-title { color: var(--acc-raidcd); }
+.overlay-section--battlerez .overlay-section-title { color: var(--acc-battlerez); }
 
-.overlay-spells {
+.overlay-instances {
   display: flex;
   flex-wrap: wrap;
   gap: 3px;
+  min-height: 24px;
 }
 
-/* Compact spell icon variant for overlay. Reuses .spell-icon inner structure. */
-.overlay-spell {
+.overlay-instances:empty::before {
+  content: "—";
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--bronze-gray);
+  padding: 4px 2px;
+}
+
+/* 개별 player-spell 인스턴스 아이콘. 24×24, 플레이어 클래스 색 보더. */
+.overlay-instance {
   position: relative;
-  width: 30px;
-  height: 30px;
-  border: 1px solid var(--border-gold);
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border);
   border-radius: 2px;
   background: var(--bg-surface);
   overflow: hidden;
   cursor: pointer;
   transition: border-color 0.2s, box-shadow 0.2s, filter 0.3s;
 }
-.overlay-spell img {
+.overlay-instance img {
   width: 100%;
   height: 100%;
   display: block;
   object-fit: cover;
 }
-.overlay-spell .abbr {
+.overlay-instance .abbr {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 9px;
+  color: var(--cream);
+  background: var(--bg-surface);
+}
+.overlay-instance .cooldown-sweep {
+  position: absolute;
+  inset: 0;
+  background: conic-gradient(transparent 0%, rgba(0, 0, 0, 0.75) 0%);
+  pointer-events: none;
+  transition: background 150ms linear;
+}
+.overlay-instance .cooldown-text {
   position: absolute;
   inset: 0;
   display: flex;
@@ -938,40 +963,24 @@ body.overlay-mode .overlay-exit-btn {
   font-family: var(--font-mono);
   font-weight: 700;
   font-size: 10px;
-  color: var(--cream);
-  background: var(--bg-surface);
-}
-.overlay-spell .cooldown-sweep {
-  position: absolute;
-  inset: 0;
-  background: conic-gradient(transparent 0%, rgba(0, 0, 0, 0.72) 0%);
-  pointer-events: none;
-  transition: background 150ms linear;
-}
-.overlay-spell .cooldown-text {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 11px;
   color: #fff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 1), 0 0 4px rgba(0, 0, 0, 0.9);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 1), 0 0 3px rgba(0, 0, 0, 0.9);
   font-variant-numeric: tabular-nums;
   pointer-events: none;
 }
-.overlay-spell.cooling { filter: saturate(0.45) brightness(0.72); }
-.overlay-spell.cooling .abbr { color: var(--bronze-gray); }
-.overlay-spell.ready {
-  border-color: var(--gold);
-  box-shadow: 0 0 6px rgba(212, 175, 55, 0.55);
-  animation: ready-pulse 2.4s ease-in-out infinite;
+.overlay-instance.cooling { filter: saturate(0.5) brightness(0.75); }
+.overlay-instance.cooling .abbr { color: var(--bronze-gray); }
+.overlay-instance.ready {
+  box-shadow: 0 0 5px currentColor;
+  animation: overlay-ready-pulse 2.4s ease-in-out infinite;
 }
-.overlay-spell.ready .cooldown-sweep,
-.overlay-spell.ready .cooldown-text {
+.overlay-instance.ready .cooldown-sweep,
+.overlay-instance.ready .cooldown-text {
   display: none;
+}
+@keyframes overlay-ready-pulse {
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1.2); }
 }
 
 /* ============================================================
