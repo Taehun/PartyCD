@@ -13,6 +13,7 @@ const translations = {
     status_unsupported: "이 브라우저는 File System Access API를 지원하지 않습니다. Chrome/Edge/Arc 같은 Chromium 기반 브라우저를 사용하세요.",
     status_init_fail: "초기화 실패",
     status_folder_fail: "폴더 선택 실패",
+    status_recovering: "일시 오류 — 재시도 중",
 
     btn_pick: "WoW Logs 폴더 선택",
     btn_pick_reauth: "폴더 다시 선택 (재승인)",
@@ -62,6 +63,7 @@ const translations = {
     status_unsupported: "This browser does not support the File System Access API. Please use a Chromium-based browser (Chrome, Edge, Arc).",
     status_init_fail: "Initialization failed",
     status_folder_fail: "Folder selection failed",
+    status_recovering: "Transient error — retrying",
 
     btn_pick: "Select WoW Logs Folder",
     btn_pick_reauth: "Reselect Folder (Reauthorize)",

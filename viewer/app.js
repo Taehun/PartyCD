@@ -10,6 +10,11 @@ const RENDER_INTERVAL_MS = 100;
 const DAMAGE_BUFFER_MS = 10_000;        // 사망 직전 N ms 데미지 보존
 const DAMAGE_BUFFER_TRIM_MS = 30_000;   // 메모리 보호용 cutoff
 const DEATH_LIMIT = 30;
+
+// Windows + File System Access API transient 에러 허용치.
+// 로그 롤오버 / WoW flush 시점의 파일 락 / AV 실시간 검사 등으로 간헐적 NotReadableError가 날 수 있음.
+const TRANSIENT_WARN_THRESHOLD = 5;    // 연속 ~2.5s까진 무음
+const TRANSIENT_ALERT_THRESHOLD = 10;  // 연속 ~5s 넘으면 err로 표시
 const IDB_NAME = "partycd-viewer";
 const IDB_STORE = "handles";
 const IDB_KEY = "logs-dir";
@@ -181,6 +186,7 @@ let watchTimer = null;
 let currentFileHandle = null;
 let readPosition = 0;
 let residualBuffer = "";
+let consecutiveErrors = 0;
 
 function startWatching(dirHandle) {
   document.getElementById("setup").hidden = true;
@@ -192,11 +198,22 @@ function startWatching(dirHandle) {
   currentFileHandle = null;
   readPosition = 0;
   residualBuffer = "";
+  consecutiveErrors = 0;
 
   setStatus(t("status_folder_connected"), "warn");
 
-  watchTimer = setInterval(() => pollOnce(dirHandle).catch(onPollError), POLL_INTERVAL_MS);
-  pollOnce(dirHandle).catch(onPollError);
+  const tick = () => pollOnce(dirHandle).then(onPollSuccess).catch(onPollError);
+  watchTimer = setInterval(tick, POLL_INTERVAL_MS);
+  tick();
+}
+
+function onPollSuccess() {
+  if (consecutiveErrors === 0) return;
+  consecutiveErrors = 0;
+  // 연결 상태 복원 — 파일이 잡혀 있으면 파일명까지 표시.
+  if (currentFileHandle) {
+    setStatus(`${t("status_connected")} — ${currentFileHandle.name}`, "ok");
+  }
 }
 
 async function pollOnce(dirHandle) {
@@ -250,8 +267,9 @@ async function pollOnce(dirHandle) {
 }
 
 function onPollError(err) {
-  console.error("poll error:", err);
+  // 명시적 권한 철회는 즉시 hard-fail — 재인증 유도.
   if (err.name === "NotAllowedError") {
+    console.error("poll permission revoked:", err);
     setStatus(t("status_permission_revoked"), "err");
     if (watchTimer) clearInterval(watchTimer);
     watchTimer = null;
@@ -259,6 +277,24 @@ function onPollError(err) {
     document.getElementById("viewer").hidden = true;
     return;
   }
+
+  // 그 외(NotReadableError/NotFoundError/AbortError 등)는 대체로 transient.
+  // WoW flush 락 경합, 로그 롤오버, AV 실시간 검사 등으로 간헐적으로 터짐 → 조용히 재시도.
+  consecutiveErrors += 1;
+
+  if (consecutiveErrors < TRANSIENT_WARN_THRESHOLD) {
+    // 무음 — 다음 tick에서 복구될 가능성 높음.
+    if (consecutiveErrors === 1) console.debug("poll transient:", err.name, err.message);
+    return;
+  }
+
+  if (consecutiveErrors < TRANSIENT_ALERT_THRESHOLD) {
+    setStatus(`${t("status_recovering")} · ${consecutiveErrors}`, "warn");
+    return;
+  }
+
+  // 지속적 실패 — 실제 문제로 간주.
+  console.error(`poll error persistent (${consecutiveErrors} consecutive):`, err);
   setStatus(`${t("status_error")}: ${err.message}`, "err");
 }
 
