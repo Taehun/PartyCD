@@ -6,22 +6,25 @@
   <title>PartyCD Viewer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="scanline"></div>
+  <div class="grain-overlay"></div>
 
   <header id="topbar">
     <div class="topbar-left">
-      <div class="logo">PCD</div>
-      <h1 data-i18n="title">PartyCD Viewer</h1>
+      <span class="logo">PCD</span>
+      <span class="logo-subtitle" data-i18n="subtitle"></span>
     </div>
     <div class="topbar-right">
-      <div id="status" class="status-idle" data-i18n="status_idle"></div>
+      <div id="status" class="status-pill status-idle">
+        <span class="status-dot"></span>
+        <span id="status-text" data-i18n="status_idle"></span>
+      </div>
       <div id="lang-picker" class="lang-picker">
-        <button id="lang-btn" class="lang-btn" title="Language">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <button id="lang-btn" class="icon-btn" title="Language">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"/>
             <path d="M2 12h20"/>
             <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
@@ -30,14 +33,19 @@
         </button>
         <ul id="lang-menu" class="lang-menu" hidden></ul>
       </div>
-      <button id="change-folder" hidden data-i18n="btn_change_folder"></button>
+      <button id="change-folder" class="icon-btn" hidden title="Change folder">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
+        <span data-i18n="btn_change_folder"></span>
+      </button>
     </div>
   </header>
 
   <div id="setup">
     <div class="setup-box">
       <div class="setup-icon">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
         </svg>
       </div>
@@ -53,50 +61,72 @@
   </div>
 
   <main id="viewer" hidden>
-    <section id="survival" class="panel panel--survival">
-      <div class="panel-header">
-        <span class="panel-icon">&#9876;</span>
+    <section id="survival" class="grid-panel" data-category="SURVIVAL">
+      <header class="section-header">
+        <span class="section-dot"></span>
         <h2 data-i18n="section_survival"></h2>
-      </div>
-      <div class="bars"></div>
-      <p class="empty" data-i18n="empty"></p>
+        <div class="section-line"></div>
+      </header>
+      <div class="icon-grid"></div>
+      <p class="grid-empty" data-i18n="grid_empty"></p>
     </section>
 
-    <section id="raidcd" class="panel panel--raidcd">
-      <div class="panel-header">
-        <span class="panel-icon">&#9764;</span>
+    <section id="raidcd" class="grid-panel" data-category="RAID_CD">
+      <header class="section-header">
+        <span class="section-dot"></span>
         <h2 data-i18n="section_raidcd"></h2>
-      </div>
-      <div class="bars"></div>
-      <p class="empty" data-i18n="empty"></p>
+        <div class="section-line"></div>
+      </header>
+      <div class="icon-grid"></div>
+      <p class="grid-empty" data-i18n="grid_empty"></p>
     </section>
 
-    <section id="heroism" class="panel panel--heroism">
-      <div class="panel-header">
-        <span class="panel-icon">&#9889;</span>
-        <h2 data-i18n="section_heroism"></h2>
-      </div>
-      <div class="bars"></div>
-      <p class="empty" data-i18n="empty"></p>
-    </section>
+    <div class="utility-row">
+      <section id="heroism" class="utility-card heroism-card">
+        <div class="utility-icon">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M13 2L4.09 12.97 11 13l-1 9 8.91-10.97L12 11l1-9z"/>
+          </svg>
+        </div>
+        <div class="utility-body">
+          <div class="utility-title-row">
+            <h3 data-i18n="section_heroism"></h3>
+            <span class="utility-status"></span>
+          </div>
+          <div class="utility-detail"></div>
+        </div>
+      </section>
 
-    <section id="battlerez" class="panel panel--battlerez">
-      <div class="panel-header">
-        <span class="panel-icon">&#9760;</span>
-        <h2 data-i18n="section_battlerez"></h2>
-      </div>
-      <div class="bars"></div>
-      <p class="empty" data-i18n="empty"></p>
-    </section>
+      <section id="battlerez" class="utility-card battlerez-card">
+        <div class="utility-icon">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2a8 8 0 0 0-8 8c0 3.4 2.1 6.3 5 7.5V20a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-2.5c2.9-1.2 5-4.1 5-7.5a8 8 0 0 0-8-8zM9 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm6 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm-3 4l-1.5 2h3L12 15z"/>
+          </svg>
+          <span class="charge-badge"></span>
+        </div>
+        <div class="utility-body">
+          <div class="utility-title-row">
+            <h3 data-i18n="section_battlerez"></h3>
+            <span class="utility-status"></span>
+          </div>
+          <div class="utility-detail"></div>
+        </div>
+      </section>
+    </div>
 
-    <section id="history" class="panel panel--history">
-      <div class="panel-header">
-        <span class="panel-icon">&#9776;</span>
-        <h2 data-i18n="section_history"></h2>
-      </div>
-      <ul></ul>
+    <section id="deathlog" class="death-panel">
+      <header class="section-header">
+        <span class="section-dot"></span>
+        <h2 data-i18n="section_deathlog"></h2>
+        <span class="section-note" data-i18n="deathlog_clear_note"></span>
+        <div class="section-line"></div>
+      </header>
+      <div class="death-list"></div>
+      <p class="grid-empty" data-i18n="deathlog_empty"></p>
     </section>
   </main>
+
+  <div id="tooltip" class="tooltip" hidden></div>
 
   <script type="module" src="app.js"></script>
 </body>

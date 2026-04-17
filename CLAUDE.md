@@ -56,15 +56,20 @@ Locales → SpellData → RosterManager → CooldownTracker → AddonComm → UI
 
 ## Web Viewer (`viewer/`)
 
-Static web companion that tails `Logs/WoWCombatLog-*.txt` via the browser's File System Access API to display party cooldowns, as a workaround for Secret Values limits. Pure vanilla JS, no build step, no server.
+Static web companion that tails `Logs/WoWCombatLog-*.txt` via the browser's File System Access API to display raid cooldowns + death log, as a workaround for Secret Values limits. Pure vanilla JS, no build step, no server.
+
+WoW in-game UI theme: dark slate background, gold/bronze borders, EB Garamond display + Inter body + Space Grotesk mono. Spell icons load from Wowhead CDN (`https://wow.zamimg.com/images/wow/icons/large/{iconName}.jpg`) with 2-letter abbreviation fallback.
 
 | File | Role |
 |---|---|
-| `viewer/spells.js` | Port of `PartyCD/SpellData.lua`. **Must be kept in sync when adding spells.** |
-| `viewer/parser.js` | Combat log line parser (pure function). Handles quoted commas, affiliation flags, aura remapping. |
-| `viewer/app.js` | Directory polling (500ms), state store, DOM rendering with node reuse, IndexedDB handle persistence. |
-| `viewer/index.html`, `style.css` | Static shell. |
-| `viewer/test/parser.test.js` | `node --test` unit tests (`npm test` in `viewer/`). |
+| `viewer/spells.js` | Port of `PartyCD/SpellData.lua` plus `iconName` (Wowhead) and `abbr` (fallback). **Must be kept in sync when adding spells.** |
+| `viewer/parser.js` | Combat log line parser (pure function). Handles quoted commas, affiliation flags, aura remapping. Events: `SPELL_CAST_SUCCESS`, `SPELL_AURA_APPLIED`, `SPELL_INTERRUPT`, `UNIT_DIED`, `ENCOUNTER_START`/`END`, `SPELL_DAMAGE`/`SPELL_PERIODIC_DAMAGE`/`SWING_DAMAGE`. |
+| `viewer/app.js` | Directory polling (500ms), state store (players/deaths/damageBuffer/encounter), grid + utility card + death log rendering, hover tooltip, IndexedDB handle persistence. Demo mode via `?demo=1`. |
+| `viewer/i18n.js` | ko / en translations + locale picker. |
+| `viewer/index.html`, `style.css` | Static shell, WoW UI theme. |
+| `viewer/test/parser.test.js` | `node --test` unit tests, 30 tests (`npm test` in `viewer/`). |
+
+UI structure: SURVIVAL grid + RAID CD grid (one icon per spell with `×N` count badge top-right and ready-count green badge bottom-right; radial conic-gradient cooldown sweep + center timer; gold border glow when all instances ready; hover popover lists each owner with individual cooldown). HEROISM card (single indicator — any one caster firing consumes all). BATTLE REZ card (charge count = number of ready spell instances; greys out when 0; shows next-charge timer). DEATH LOG (collapsible rows ascending by death time; expanded row shows last 10 seconds of damage taken; cleared on `ENCOUNTER_START`).
 
 Chromium-only. Run via local static server (`npx serve viewer`) — `file://` blocks File System Access API.
 

@@ -10,73 +10,165 @@ const AFFIL_PARTY = 0x2;
 const AFFIL_RAID  = 0x4;
 const AFFIL_MASK  = AFFIL_MINE | AFFIL_PARTY | AFFIL_RAID;
 
+// COMBATLOG_OBJECT_TYPE_PLAYER
+const TYPE_PLAYER = 0x400;
+
 // 공통 prefix 필드 인덱스 (이벤트 이름 제외, 0-based)
 // 0:sourceGUID 1:sourceName 2:sourceFlags 3:sourceRaidFlags
 // 4:destGUID   5:destName   6:destFlags   7:destRaidFlags
 // 8:spellId    9:spellName  10:spellSchool
+const IDX_SOURCE_GUID = 0;
 const IDX_SOURCE_NAME = 1;
 const IDX_SOURCE_FLAGS = 2;
+const IDX_DEST_GUID = 4;
+const IDX_DEST_NAME = 5;
+const IDX_DEST_FLAGS = 6;
 const IDX_SPELL_ID = 8;
+const IDX_SPELL_NAME = 9;
+
+const SPELL_EVENTS = new Set([
+  "SPELL_CAST_SUCCESS",
+  "SPELL_AURA_APPLIED",
+  "SPELL_INTERRUPT",
+  "SPELL_DAMAGE",
+  "SPELL_PERIODIC_DAMAGE",
+  "RANGE_DAMAGE",
+]);
+
+const NON_SPELL_EVENTS = new Set([
+  "UNIT_DIED",
+  "ENCOUNTER_START",
+  "ENCOUNTER_END",
+  "SWING_DAMAGE",
+  "SWING_DAMAGE_LANDED",
+]);
 
 export function parseLine(line) {
   if (!line) return null;
 
-  // 타임스탬프와 이벤트 본문은 2-space로 구분
   const sepIdx = line.indexOf("  ");
   if (sepIdx < 0) return null;
 
   const tsStr = line.slice(0, sepIdx);
   const rest = line.slice(sepIdx + 2);
 
-  // 첫 콤마 전까지가 이벤트 이름
   const firstComma = rest.indexOf(",");
   if (firstComma < 0) return null;
 
   const eventName = rest.slice(0, firstComma);
-  if (
-    eventName !== "SPELL_CAST_SUCCESS" &&
-    eventName !== "SPELL_AURA_APPLIED" &&
-    eventName !== "SPELL_INTERRUPT"
-  ) {
+  if (!SPELL_EVENTS.has(eventName) && !NON_SPELL_EVENTS.has(eventName)) {
     return null;
   }
 
   const fields = splitCsv(rest.slice(firstComma + 1));
+  const timestamp = parseTimestamp(tsStr);
+
+  if (eventName === "ENCOUNTER_START") {
+    // ENCOUNTER_START,encounterID,"encounterName",difficultyID,groupSize,instanceID
+    return {
+      type: "encounter_start",
+      timestamp,
+      encounterId: Number(fields[0]),
+      encounterName: fields[1] ?? "",
+    };
+  }
+
+  if (eventName === "ENCOUNTER_END") {
+    // ENCOUNTER_END,encounterID,"encounterName",difficultyID,groupSize,success,fightTime
+    return {
+      type: "encounter_end",
+      timestamp,
+      encounterId: Number(fields[0]),
+      encounterName: fields[1] ?? "",
+      success: fields[4] === "1",
+    };
+  }
+
+  if (eventName === "UNIT_DIED") {
+    // UNIT_DIED,sourceGUID,sourceName,sourceFlags,sourceRaidFlags,destGUID,destName,destFlags,destRaidFlags
+    const destFlags = parseHex(fields[IDX_DEST_FLAGS]);
+    if (!(destFlags & AFFIL_MASK)) return null;
+    if (!(destFlags & TYPE_PLAYER)) return null;
+    const destName = fields[IDX_DEST_NAME];
+    if (!destName) return null;
+    return {
+      type: "death",
+      timestamp,
+      player: stripRealm(destName),
+    };
+  }
+
+  if (eventName === "SWING_DAMAGE" || eventName === "SWING_DAMAGE_LANDED") {
+    // SWING_DAMAGE,sourceGUID,sourceName,sourceFlags,sourceRaidFlags,destGUID,destName,destFlags,destRaidFlags,advanced...amount,...
+    const destFlags = parseHex(fields[IDX_DEST_FLAGS]);
+    if (!(destFlags & AFFIL_MASK)) return null;
+    if (!(destFlags & TYPE_PLAYER)) return null;
+    const destName = fields[IDX_DEST_NAME];
+    if (!destName) return null;
+    // SWING events: 처음 8개 필드 + advanced(17개) + amount, base, overkill, ...
+    // amount는 advanced 직후 첫 숫자. 단순화: 뒤에서부터 추적.
+    const amount = extractDamageAmount(fields, 8);
+    if (amount == null) return null;
+    return {
+      type: "damage",
+      timestamp,
+      target: stripRealm(destName),
+      sourceName: stripRealm(fields[IDX_SOURCE_NAME] ?? ""),
+      spellName: "Melee",
+      amount,
+    };
+  }
+
+  // SPELL_* events: 공통 prefix + spellId, spellName, spellSchool
   if (fields.length < IDX_SPELL_ID + 1) return null;
 
   const sourceFlags = parseHex(fields[IDX_SOURCE_FLAGS]);
-  if (!(sourceFlags & AFFIL_MASK)) return null; // 파티/레이드/본인 아님
-
+  const destFlags = parseHex(fields[IDX_DEST_FLAGS]);
   const rawSourceName = fields[IDX_SOURCE_NAME];
+
+  if (eventName === "SPELL_DAMAGE" || eventName === "SPELL_PERIODIC_DAMAGE" || eventName === "RANGE_DAMAGE") {
+    if (!(destFlags & AFFIL_MASK)) return null;
+    if (!(destFlags & TYPE_PLAYER)) return null;
+    const destName = fields[IDX_DEST_NAME];
+    if (!destName) return null;
+    const amount = extractDamageAmount(fields, IDX_SPELL_ID + 3);
+    if (amount == null) return null;
+    return {
+      type: "damage",
+      timestamp,
+      target: stripRealm(destName),
+      sourceName: stripRealm(rawSourceName ?? ""),
+      spellName: fields[IDX_SPELL_NAME] ?? "",
+      amount,
+      periodic: eventName === "SPELL_PERIODIC_DAMAGE",
+    };
+  }
+
+  // SPELL_CAST_SUCCESS / SPELL_AURA_APPLIED / SPELL_INTERRUPT
+  if (!(sourceFlags & AFFIL_MASK)) return null;
   if (!rawSourceName) return null;
   const player = stripRealm(rawSourceName);
 
   const spellIdRaw = Number(fields[IDX_SPELL_ID]);
   if (!Number.isFinite(spellIdRaw)) return null;
 
-  // SPELL_AURA_APPLIED는 auraSpellID로 기록되므로 원본 spellID로 역매핑
   let spellId = spellIdRaw;
   let type;
   if (eventName === "SPELL_CAST_SUCCESS") {
     type = "cast";
   } else if (eventName === "SPELL_AURA_APPLIED") {
-    // auraType은 마지막 필드 (adv logging이 SPELL_AURA_APPLIED에 extra field 추가 안 함)
     const auraType = fields[fields.length - 1];
     if (auraType !== "BUFF") return null;
-    // auraSpellID → 원본 스펠 역매핑
     const mapped = AuraToSpell[spellIdRaw];
     if (!mapped) return null;
     spellId = mapped;
     type = "aura";
   } else {
-    // SPELL_INTERRUPT — sourceSpellId는 인터럽터 스펠, extraSpellId는 끊은 대상 스펠
     type = "interrupt";
   }
 
   const spell = SpellData[spellId];
   if (!spell) return null;
-
-  const timestamp = parseTimestamp(tsStr);
 
   const out = {
     type,
@@ -87,7 +179,6 @@ export function parseLine(line) {
   };
 
   if (type === "interrupt") {
-    // extraSpellId는 공통 prefix(11) 이후 인덱스 11
     const extraIdx = 11;
     if (fields.length > extraIdx + 1) {
       out.targetSpellId = Number(fields[extraIdx]);
@@ -98,9 +189,23 @@ export function parseLine(line) {
   return out;
 }
 
+// advanced logging이 켜져 있으면 spell prefix 뒤에 17개의 advanced 필드가 들어옴.
+// amount 후보를 뒤에서부터 스캔: 큰 정수 + 그 뒤에 다른 정수가 이어지면 amount로 간주.
+// 단순화: spell prefix 뒤 첫 큰 숫자를 amount로 본다.
+function extractDamageAmount(fields, suffixStart) {
+  // 시도 1: advanced logging on이면 suffixStart + 17 위치가 amount
+  // 시도 2: advanced off면 suffixStart 위치가 amount
+  const candidates = [suffixStart + 17, suffixStart];
+  for (const idx of candidates) {
+    if (idx >= fields.length) continue;
+    const v = Number(fields[idx]);
+    if (Number.isFinite(v) && v >= 0) return v;
+  }
+  return null;
+}
+
 // -------- helpers --------
 
-// 따옴표 안 쉼표를 존중하는 CSV splitter
 export function splitCsv(str) {
   const out = [];
   let cur = "";
@@ -109,7 +214,7 @@ export function splitCsv(str) {
     const c = str[i];
     if (c === '"') {
       inQuote = !inQuote;
-      continue; // 따옴표 문자 자체는 제외
+      continue;
     }
     if (c === "," && !inQuote) {
       out.push(cur);
@@ -124,19 +229,16 @@ export function splitCsv(str) {
 
 function parseHex(str) {
   if (!str) return 0;
-  const n = Number(str); // "0x..." 접두어를 Number가 처리
+  const n = Number(str);
   return Number.isFinite(n) ? n : 0;
 }
 
-// "Taehun-Azshara" → "Taehun"
 function stripRealm(name) {
   const dash = name.indexOf("-");
   return dash < 0 ? name : name.slice(0, dash);
 }
 
-// "4/11 20:13:42.123-4" 또는 "4/11 20:13:42.123" → epoch ms
 export function parseTimestamp(str) {
-  // TZ 접미어 제거
   const tzMatch = str.match(/^(.+?)([+-]\d+)?$/);
   const core = tzMatch ? tzMatch[1] : str;
 

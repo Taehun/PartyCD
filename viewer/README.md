@@ -33,11 +33,19 @@ npx serve .          # 또는 python3 -m http.server 8000
 
 ### 3. 표시 내용
 
-- **🛡️ 힐러 생존기**: 파티 힐러들의 생존기 쿨다운 (Guardian Spirit, Pain Suppression, Ironbark 등 9종)
-- **⚔️ 인터럽트**: 파티원 인터럽트 쿨다운 (Pummel, Kick, Mind Freeze 등 14종)
-- **📜 최근 캐스트**: 감지된 최근 30개 이벤트 타임라인 (인터럽트 성공 시 끊은 스펠 이름 포함)
+WoW 인게임 UI 스타일의 그리드 대시보드:
 
-추적 대상 스펠은 `spells.js`에 정의됨. 애드온의 `PartyCD/SpellData.lua` 와 동일한 목록.
+- **SURVIVAL** — 외부 생존기 9종 (Guardian Spirit, Pain Suppression, Ironbark 등). 스펠당 1아이콘. 우상단 `×N` 배지(공대 보유수), 우하단 녹색 배지(준비된 수). 라디얼 쿨다운 sweep + 중앙 타이머. 호버 시 보유 플레이어 목록 + 개별 쿨다운 툴팁.
+- **RAID CD** — 공대 방어/힐 쿨 8종 (Tranquility, Rallying Cry, Anti-Magic Zone 등). SURVIVAL과 동일 구조.
+- **HEROISM** — 영웅심/블러드러스트 등 5종. 단일 인디케이터, 누구든 1명이 시전하면 모두 소모.
+- **BATTLE REZ** — 전투부활 4종을 통합 인디케이터로. 차지 수 배지 + 다음 가능 시간 실시간.
+- **DEATH LOG** — 공대원 사망 기록 (시간 오름차순). 행 클릭 시 펼쳐서 사망 직전 10초간 받은 데미지 전체 (시간/데미지/소스/스펠). `ENCOUNTER_START` 이벤트로 신규 전투 시작 시 자동 초기화.
+
+추적 대상 스펠은 `spells.js`에 정의됨. 애드온의 `PartyCD/SpellData.lua` 와 동일한 목록. 각 스펠은 Wowhead CDN에서 공식 아이콘을 로드하며, 로딩 실패 시 2자 약어로 폴백한다.
+
+### 4. 데모 모드
+
+URL 파라미터 `?demo=1`로 모의 데이터 상태에서 UI 검증 가능: `http://localhost:3000/?demo=1`.
 
 ## 제약
 
@@ -54,7 +62,7 @@ npx serve .          # 또는 python3 -m http.server 8000
 npm test
 ```
 
-파서 단위 테스트 19개 (`test/parser.test.js`).
+파서 단위 테스트 30개 (`test/parser.test.js`) — `SPELL_CAST_SUCCESS` / `SPELL_AURA_APPLIED` / `SPELL_INTERRUPT` 외에 `UNIT_DIED` / `ENCOUNTER_START` / `ENCOUNTER_END` / `SPELL_DAMAGE` 도 다룬다.
 
 ### 파일 구조
 
@@ -69,6 +77,7 @@ viewer/
 │   ├── parser.test.js
 │   └── fixtures/
 │       └── sample.txt   # 샘플 전투 로그 라인
+├── i18n.js          # ko / en 번역
 └── package.json
 ```
 
@@ -76,16 +85,17 @@ viewer/
 
 스펠을 추가하려면 **두 곳** 모두 수정해야 한다:
 1. `PartyCD/SpellData.lua` (애드온)
-2. `viewer/spells.js` (뷰어)
+2. `viewer/spells.js` (뷰어 — `iconName` 과 `abbr` 필드 포함)
 
-두 파일은 독립 유지되므로 커밋 시 양쪽 동기화 확인 필수.
+두 파일은 독립 유지되므로 커밋 시 양쪽 동기화 확인 필수. `iconName`은 Wowhead CDN 파일 이름(예: `spell_holy_guardianspirit`).
 
 ## 작동 원리
 
 1. 브라우저가 `showDirectoryPicker()` 로 WoW Logs 디렉토리 권한 획득
 2. 500ms 주기로 디렉토리 스캔 → 가장 최근 `WoWCombatLog-*.txt` 선택
 3. 파일 크기 증가분만 증분 읽기 (`File.slice(lastPos, size).text()`)
-4. 라인 단위 파싱: `SPELL_CAST_SUCCESS`, `SPELL_AURA_APPLIED`, `SPELL_INTERRUPT` 이벤트만 통과
-5. `sourceFlags` 비트 검사로 파티/레이드/본인만 필터
-6. `spellId` → `SpellData` 조회 → `expires = castTime + cooldown` 기록
-7. 100ms `setInterval` 으로 카운트다운 바 갱신
+4. 라인 단위 파싱: 시전(`SPELL_CAST_SUCCESS`/`SPELL_AURA_APPLIED`), 사망(`UNIT_DIED`), 데미지(`SPELL_DAMAGE`/`SPELL_PERIODIC_DAMAGE`/`SWING_DAMAGE`), 전투 경계(`ENCOUNTER_START`/`ENCOUNTER_END`)
+5. `sourceFlags`/`destFlags` 비트 검사로 파티/레이드/본인만 필터
+6. 시전 → `expires = castTime + cooldown` 기록 / 데미지 → 플레이어별 링 버퍼에 적재 / 사망 → 직전 10초 데미지 스냅샷
+7. 100ms `setInterval`로 라디얼 sweep + 타이머 갱신
+8. `ENCOUNTER_START` 시 사망 로그 + 데미지 버퍼 자동 초기화

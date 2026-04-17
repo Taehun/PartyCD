@@ -194,12 +194,61 @@ test("SPELL_INTERRUPT: 인터럽트 스펠이 SpellData에 없으므로 drop", (
   assert.equal(parseLine(line), null);
 });
 
-// ===== 기타 =====
+// ===== DEATH / ENCOUNTER / DAMAGE =====
 
-test("관심 없는 이벤트 → drop", () => {
-  const line = buildLine("SPELL_DAMAGE", { spellId: 97462 });
+test("UNIT_DIED on party member → death event", () => {
+  // UNIT_DIED는 prefix만 있고 spell info 없음. dest가 파티원이어야 함.
+  // sourceFlags=0x0 (UNIT_DIED는 source가 nil인 경우가 많음)
+  const line = `4/11 20:13:42.123  UNIT_DIED,0000000000000000,nil,0x0,0x0,Player-1-0001,"Holy신부-Azshara",0x512,0x0`;
+  const ev = parseLine(line);
+  assert.ok(ev);
+  assert.equal(ev.type, "death");
+  assert.equal(ev.player, "Holy신부");
+});
+
+test("UNIT_DIED on non-party (NPC) → drop", () => {
+  // destFlags=0x10a48 typical for NPC
+  const line = `4/11 20:13:42.123  UNIT_DIED,0000000000000000,nil,0x0,0x0,Creature-0,"Random Mob",0x10a48,0x0`;
   assert.equal(parseLine(line), null);
 });
+
+test("ENCOUNTER_START → encounter_start event", () => {
+  const line = `4/11 20:13:42.123  ENCOUNTER_START,2741,"Broodtwister Ovi'nax",16,20,2657`;
+  const ev = parseLine(line);
+  assert.ok(ev);
+  assert.equal(ev.type, "encounter_start");
+  assert.equal(ev.encounterId, 2741);
+  assert.equal(ev.encounterName, "Broodtwister Ovi'nax");
+});
+
+test("ENCOUNTER_END success → encounter_end event", () => {
+  const line = `4/11 20:13:42.123  ENCOUNTER_END,2741,"Broodtwister Ovi'nax",16,20,1,184500`;
+  const ev = parseLine(line);
+  assert.ok(ev);
+  assert.equal(ev.type, "encounter_end");
+  assert.equal(ev.success, true);
+});
+
+test("SPELL_DAMAGE on party member (advanced logging) → damage event", () => {
+  // 8개 prefix + 3개 spell info + 17개 advanced + amount, baseAmount, overkill, ...
+  const advanced = "Creature-0-1234,0000000000000000,2000000,2000000,1000,1000,1000,1000,0,0,0,0,0,0,0.0,0.0,0";
+  const line = `4/11 20:13:42.123  SPELL_DAMAGE,Creature-0-1234,"Raszageth",0x10a48,0x0,Player-1-0001,"Holy신부-Azshara",0x512,0x0,381466,"Lightning Breath",0x8,${advanced},2847193,2847193,0,1,0,nil,nil,nil`;
+  const ev = parseLine(line);
+  assert.ok(ev);
+  assert.equal(ev.type, "damage");
+  assert.equal(ev.target, "Holy신부");
+  assert.equal(ev.sourceName, "Raszageth");
+  assert.equal(ev.spellName, "Lightning Breath");
+  assert.equal(ev.amount, 2847193);
+});
+
+test("SPELL_DAMAGE on NPC → drop", () => {
+  const advanced = "Player-1-0001,0000000000000000,1000,1000,500,500,500,500,0,0,0,0,0,0,0.0,0.0,0";
+  const line = `4/11 20:13:42.123  SPELL_DAMAGE,Player-1-0001,"Taehun-Azshara",0x511,0x0,Creature-0,"Boss",0x10a48,0x0,12345,"Spell",0x1,${advanced},5000,5000,0,1,0,nil,nil,nil`;
+  assert.equal(parseLine(line), null);
+});
+
+// ===== 기타 =====
 
 test("빈 줄 / 깨진 라인 → drop", () => {
   assert.equal(parseLine(""), null);

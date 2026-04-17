@@ -1,5 +1,5 @@
 import { parseLine } from "./parser.js";
-import { SpellData, CLASS_COLORS } from "./spells.js";
+import { SpellData, CLASS_COLORS, iconUrl } from "./spells.js";
 import { t, setLocale, getLocale, detectLocale, getAvailableLocales } from "./i18n.js";
 
 // ============================================================
@@ -7,28 +7,43 @@ import { t, setLocale, getLocale, detectLocale, getAvailableLocales } from "./i1
 // ============================================================
 const POLL_INTERVAL_MS = 500;
 const RENDER_INTERVAL_MS = 100;
-const HISTORY_LIMIT = 30;
+const DAMAGE_BUFFER_MS = 10_000;        // 사망 직전 N ms 데미지 보존
+const DAMAGE_BUFFER_TRIM_MS = 30_000;   // 메모리 보호용 cutoff
+const DEATH_LIMIT = 30;
 const IDB_NAME = "partycd-viewer";
 const IDB_STORE = "handles";
 const IDB_KEY = "logs-dir";
 
+const SVG_NS = "http://www.w3.org/2000/svg";
+const SKULL_PATH = "M12 2a8 8 0 0 0-8 8c0 3.4 2.1 6.3 5 7.5V20a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-2.5c2.9-1.2 5-4.1 5-7.5a8 8 0 0 0-8-8zM9 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm6 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z";
+
 const CATEGORY_SECTIONS = {
-  SURVIVAL:  "survival",
-  RAID_CD:   "raidcd",
-  HEROISM:   "heroism",
-  BATTLEREZ: "battlerez",
+  SURVIVAL: "survival",
+  RAID_CD:  "raidcd",
 };
+
+const CATEGORY_SPELL_ORDER = (() => {
+  const out = {};
+  for (const cat of ["SURVIVAL", "RAID_CD", "HEROISM", "BATTLEREZ"]) {
+    out[cat] = Object.entries(SpellData)
+      .filter(([, s]) => s.category === cat)
+      .map(([id]) => Number(id));
+  }
+  return out;
+})();
 
 // ============================================================
 // 상태
 // ============================================================
 const state = {
-  players: {},       // { [playerName]: { class, cooldowns: { [spellId]: { castAt, expiresAt } } } }
-  history: [],       // { timestamp, player, class, spellId, spellName, type }[]
+  players: {},
+  deaths: [],
+  damageBuffer: {},
+  encounter: null,
   currentFileName: null,
 };
 
-const barNodes = new Map(); // "player:spellId" → HTMLElement, DOM 재사용
+const expandedDeaths = new Set();
 
 // ============================================================
 // 엔트리
@@ -36,6 +51,17 @@ const barNodes = new Map(); // "player:spellId" → HTMLElement, DOM 재사용
 async function main() {
   setLocale(detectLocale());
   initLangToggle();
+
+  if (new URLSearchParams(location.search).get("demo") === "1") {
+    loadDemoState();
+    document.getElementById("setup").hidden = true;
+    document.getElementById("viewer").hidden = false;
+    document.getElementById("change-folder").hidden = false;
+    setStatus("DEMO MODE", "warn");
+    renderFull();
+    setInterval(renderTick, RENDER_INTERVAL_MS);
+    return;
+  }
 
   if (!("showDirectoryPicker" in window)) {
     showError(t("status_unsupported"));
@@ -59,6 +85,49 @@ async function main() {
   setInterval(renderTick, RENDER_INTERVAL_MS);
 }
 
+function loadDemoState() {
+  const now = Date.now();
+  state.players = {
+    "Lightheals":   { class: "PRIEST",      cooldowns: { 47788:{castAt:now,expiresAt:now}, 33206:{castAt:now-130000,expiresAt:now+50000}, 64843:{castAt:now,expiresAt:now} } },
+    "Shadowmend":   { class: "PRIEST",      cooldowns: { 47788:{castAt:now-60000,expiresAt:now+120000}, 33206:{castAt:now,expiresAt:now} } },
+    "Naturescure":  { class: "DRUID",       cooldowns: { 102342:{castAt:now,expiresAt:now}, 740:{castAt:now-80000,expiresAt:now+100000}, 20484:{castAt:now,expiresAt:now} } },
+    "Sealion":      { class: "PALADIN",     cooldowns: { 6940:{castAt:now-30000,expiresAt:now+90000}, 633:{castAt:now-220000,expiresAt:now+200000}, 31821:{castAt:now,expiresAt:now}, 391054:{castAt:now-200000,expiresAt:now+400000} } },
+    "Mistwalker":   { class: "MONK",        cooldowns: { 116849:{castAt:now,expiresAt:now}, 115310:{castAt:now-30000,expiresAt:now+150000} } },
+    "Stormwhisper": { class: "SHAMAN",      cooldowns: { 98008:{castAt:now-60000,expiresAt:now+120000}, 32182:{castAt:now,expiresAt:now}, 108280:{castAt:now-90000,expiresAt:now+90000} } },
+    "Tidecaller":   { class: "SHAMAN",      cooldowns: { 108280:{castAt:now-30000,expiresAt:now+150000}, 2825:{castAt:now-100000,expiresAt:now+200000} } },
+    "Dragonkin":    { class: "EVOKER",      cooldowns: { 363534:{castAt:now-100000,expiresAt:now+140000}, 390386:{castAt:now,expiresAt:now} } },
+    "Bladeswarm":   { class: "WARRIOR",     cooldowns: { 97462:{castAt:now,expiresAt:now} } },
+    "Ravenfall":    { class: "DEMONHUNTER", cooldowns: { 196718:{castAt:now-60000,expiresAt:now+240000} } },
+    "Bonemarch":    { class: "DEATHKNIGHT", cooldowns: { 51052:{castAt:now-30000,expiresAt:now+90000}, 61999:{castAt:now,expiresAt:now} } },
+    "Frostmage":    { class: "MAGE",        cooldowns: { 80353:{castAt:now-60000,expiresAt:now+240000} } },
+    "Soulbinder":   { class: "WARLOCK",     cooldowns: { 20707:{castAt:now-300000,expiresAt:now+300000} } },
+  };
+  state.deaths = [
+    {
+      player: "Holy신부", class: "PRIEST", timestamp: now - 90000,
+      damages: [
+        { ts: now - 90000, amount: 2847193, source: "Raszageth", spell: "Lightning Breath" },
+        { ts: now - 91200, amount: 612400,  source: "Raszageth", spell: "Static Charge" },
+        { ts: now - 92500, amount: 488200,  source: "Raszageth", spell: "Static Charge (tick)" },
+        { ts: now - 93100, amount: 930100,  source: "Raszageth", spell: "Lightning Strike" },
+        { ts: now - 94200, amount: 512800,  source: "Stormling",  spell: "Lightning Bolt" },
+      ],
+    },
+    {
+      player: "Frostmage", class: "MAGE", timestamp: now - 30000,
+      damages: [
+        { ts: now - 30000, amount: 1240000, source: "Raszageth", spell: "Volatile Spark" },
+        { ts: now - 31100, amount: 240000,  source: "Raszageth", spell: "Volatile Spark (tick)" },
+      ],
+    },
+    {
+      player: "Bonemarch", class: "DEATHKNIGHT", timestamp: now - 5000,
+      damages: [],
+    },
+  ];
+  expandedDeaths.add(`${now - 30000}:Frostmage`);
+}
+
 function initLangToggle() {
   const btn = document.getElementById("lang-btn");
   const menu = document.getElementById("lang-menu");
@@ -70,7 +139,6 @@ function initLangToggle() {
     label.textContent = cur ? cur.name : getLocale();
   }
 
-  // build menu items
   for (const loc of locales) {
     const li = document.createElement("li");
     li.dataset.locale = loc.code;
@@ -88,7 +156,6 @@ function initLangToggle() {
     e.stopPropagation();
     menu.hidden = !menu.hidden;
   });
-
   document.addEventListener("click", () => { menu.hidden = true; });
 
   updateLabel();
@@ -154,7 +221,6 @@ async function pollOnce(dirHandle) {
     readPosition = 0;
     residualBuffer = "";
   }
-
   if (file.size === readPosition) return;
 
   const chunk = await file.slice(readPosition, file.size).text();
@@ -162,7 +228,6 @@ async function pollOnce(dirHandle) {
 
   const combined = residualBuffer + chunk;
   const lastNewline = combined.lastIndexOf("\n");
-
   if (lastNewline < 0) {
     residualBuffer = combined;
     return;
@@ -172,20 +237,16 @@ async function pollOnce(dirHandle) {
   residualBuffer = combined.slice(lastNewline + 1);
 
   const lines = complete.split("\n");
-  let applied = 0;
+  let dirty = false;
   for (const line of lines) {
     try {
       const event = parseLine(line);
-      if (event) {
-        applyEvent(event);
-        applied++;
-      }
+      if (event && applyEvent(event)) dirty = true;
     } catch (e) {
       console.warn("parse failed:", line, e);
     }
   }
-
-  if (applied > 0) renderFull();
+  if (dirty) renderFull();
 }
 
 function onPollError(err) {
@@ -221,220 +282,537 @@ async function findLatestLog(dirHandle) {
 // 이벤트 적용
 // ============================================================
 function applyEvent(event) {
-  const spell = SpellData[event.spellId];
-  if (!spell) return;
+  if (event.type === "encounter_start") {
+    state.encounter = { id: event.encounterId, name: event.encounterName, startedAt: event.timestamp };
+    state.deaths = [];
+    state.damageBuffer = {};
+    expandedDeaths.clear();
+    return true;
+  }
+  if (event.type === "encounter_end") {
+    state.encounter = null;
+    return true;
+  }
 
   if (event.type === "cast" || event.type === "aura") {
-    const player = (state.players[event.player] ??= {
-      class: event.class,
-      cooldowns: {},
-    });
+    const spell = SpellData[event.spellId];
+    if (!spell) return false;
+    const player = (state.players[event.player] ??= { class: event.class, cooldowns: {} });
     player.class = event.class;
     player.cooldowns[event.spellId] = {
       castAt: event.timestamp,
       expiresAt: event.timestamp + spell.cooldown * 1000,
     };
-
-    state.history.unshift({
-      timestamp: event.timestamp,
-      player: event.player,
-      class: event.class,
-      spellId: event.spellId,
-      spellName: spell.name,
-      type: event.type,
-    });
-  } else if (event.type === "interrupt") {
-    state.history.unshift({
-      timestamp: event.timestamp,
-      player: event.player,
-      class: event.class,
-      spellId: event.spellId,
-      spellName: spell.name,
-      type: "interrupt",
-      targetSpellName: event.targetSpellName,
-    });
+    return true;
   }
 
-  if (state.history.length > HISTORY_LIMIT) {
-    state.history.length = HISTORY_LIMIT;
+  if (event.type === "damage") {
+    const buf = (state.damageBuffer[event.target] ??= []);
+    buf.push({
+      ts: event.timestamp,
+      amount: event.amount,
+      source: event.sourceName || "?",
+      spell: event.spellName || "?",
+    });
+    const cutoff = event.timestamp - DAMAGE_BUFFER_TRIM_MS;
+    while (buf.length && buf[0].ts < cutoff) buf.shift();
+    return false;
   }
+
+  if (event.type === "death") {
+    const buf = state.damageBuffer[event.player] ?? [];
+    const cutoff = event.timestamp - DAMAGE_BUFFER_MS;
+    const damages = buf
+      .filter(d => d.ts >= cutoff)
+      .sort((a, b) => b.ts - a.ts);
+    const playerInfo = state.players[event.player];
+    state.deaths.push({
+      player: event.player,
+      class: playerInfo?.class ?? null,
+      timestamp: event.timestamp,
+      damages,
+    });
+    if (state.deaths.length > DEATH_LIMIT) state.deaths.shift();
+    return true;
+  }
+
+  return false;
 }
 
 // ============================================================
-// 렌더링
+// 렌더링 진입점
 // ============================================================
 function renderFull() {
-  for (const cat of Object.keys(CATEGORY_SECTIONS)) renderCategory(cat);
-  renderHistory();
+  for (const cat of Object.keys(CATEGORY_SECTIONS)) renderGrid(cat);
+  updateUtilityCard("heroism");
+  updateUtilityCard("battlerez");
+  renderDeathLog();
   renderTick();
-}
-
-function collectEntries(category) {
-  const now = Date.now();
-  const entries = [];
-  for (const [playerName, player] of Object.entries(state.players)) {
-    for (const spellIdStr of Object.keys(player.cooldowns)) {
-      const spellId = Number(spellIdStr);
-      const spell = SpellData[spellId];
-      if (!spell || spell.category !== category) continue;
-      const cd = player.cooldowns[spellId];
-      const remaining = Math.max(0, cd.expiresAt - now);
-      entries.push({
-        key: `${playerName}:${spellId}`,
-        playerName,
-        playerClass: player.class,
-        spellId,
-        spell,
-        castAt: cd.castAt,
-        expiresAt: cd.expiresAt,
-        remaining,
-      });
-    }
-  }
-  entries.sort((a, b) => {
-    const aReady = a.remaining === 0;
-    const bReady = b.remaining === 0;
-    if (aReady !== bReady) return aReady ? -1 : 1;
-    if (a.remaining !== b.remaining) return a.remaining - b.remaining;
-    return a.playerName.localeCompare(b.playerName);
-  });
-  return entries;
-}
-
-function renderCategory(category) {
-  const sectionId = CATEGORY_SECTIONS[category];
-  if (!sectionId) return;
-  const container = document.querySelector(`#${sectionId} .bars`);
-  const entries = collectEntries(category);
-
-  const currentKeys = new Set(entries.map(e => e.key));
-  for (const [key, node] of barNodes) {
-    if (node.dataset.category === category && !currentKeys.has(key)) {
-      node.remove();
-      barNodes.delete(key);
-    }
-  }
-
-  for (let i = 0; i < entries.length; i++) {
-    const e = entries[i];
-    let node = barNodes.get(e.key);
-    if (!node) {
-      node = createBarNode(e, category);
-      barNodes.set(e.key, node);
-    }
-    if (container.children[i] !== node) {
-      container.insertBefore(node, container.children[i] ?? null);
-    }
-    updateBarNode(node, e);
-  }
-
-  document.querySelector(`#${sectionId} .empty`).hidden = entries.length > 0;
-}
-
-function createBarNode(e, category) {
-  const div = document.createElement("div");
-  div.className = "bar";
-  div.dataset.category = category;
-  const color = CLASS_COLORS[e.playerClass] ?? "#888";
-  div.style.borderLeftColor = color;
-
-  const icon = document.createElement("div");
-  icon.className = "icon";
-  icon.style.color = color;
-  icon.textContent = e.spell.name.slice(0, 2);
-
-  const meta = document.createElement("div");
-  meta.className = "meta";
-  const playerEl = document.createElement("div");
-  playerEl.className = "player";
-  playerEl.style.color = color;
-  playerEl.textContent = e.playerName;
-  const spellEl = document.createElement("div");
-  spellEl.className = "spell";
-  spellEl.textContent = e.spell.name;
-  meta.append(playerEl, spellEl);
-
-  const time = document.createElement("div");
-  time.className = "time";
-
-  const fill = document.createElement("div");
-  fill.className = "fill";
-
-  div.append(icon, meta, time, fill);
-  return div;
-}
-
-function updateBarNode(node, e) {
-  const ready = e.remaining === 0;
-  node.classList.toggle("ready", ready);
-  node.classList.toggle("cooling", !ready);
-  const timeEl = node.querySelector(".time");
-  timeEl.textContent = ready ? t("ready") : formatTime(e.remaining);
-  const totalMs = e.spell.cooldown * 1000;
-  const pct = ready ? 0 : (e.remaining / totalMs) * 100;
-  node.querySelector(".fill").style.width = `${pct}%`;
 }
 
 function renderTick() {
   const now = Date.now();
-  let needsResort = false;
-  for (const [key, node] of barNodes) {
-    const [playerName, spellIdStr] = key.split(":");
-    const player = state.players[playerName];
-    if (!player) continue;
-    const spellId = Number(spellIdStr);
-    const cd = player.cooldowns[spellId];
-    if (!cd) continue;
+  document.querySelectorAll(".spell-card").forEach(card => {
+    const spellId = Number(card.dataset.spellId);
     const spell = SpellData[spellId];
-    const remaining = Math.max(0, cd.expiresAt - now);
-    const wasReady = node.classList.contains("ready");
-    const nowReady = remaining === 0;
-    if (wasReady !== nowReady) needsResort = true;
+    if (!spell) return;
+    const summary = collectSpellSummary(spellId);
+    updateSpellCard(card, summary, spell, now);
+  });
+  updateUtilityCard("heroism");
+  updateUtilityCard("battlerez");
+}
 
-    node.querySelector(".time").textContent = nowReady ? t("ready") : formatTime(remaining);
-    node.classList.toggle("ready", nowReady);
-    node.classList.toggle("cooling", !nowReady);
-    const totalMs = spell.cooldown * 1000;
-    const pct = nowReady ? 0 : (remaining / totalMs) * 100;
-    node.querySelector(".fill").style.width = `${pct}%`;
+// ============================================================
+// 공통 집계
+// ============================================================
+function collectSpellSummary(spellId) {
+  const now = Date.now();
+  const owners = [];
+  for (const [name, p] of Object.entries(state.players)) {
+    if (p.class !== SpellData[spellId].class) continue;
+    const cd = p.cooldowns[spellId];
+    if (!cd) {
+      owners.push({ player: name, class: p.class, remaining: 0, expiresAt: 0 });
+    } else {
+      owners.push({
+        player: name,
+        class: p.class,
+        remaining: Math.max(0, cd.expiresAt - now),
+        expiresAt: cd.expiresAt,
+      });
+    }
   }
-  if (needsResort) {
-    for (const cat of Object.keys(CATEGORY_SECTIONS)) renderCategory(cat);
+  const total = owners.length;
+  const ready = owners.filter(o => o.remaining === 0).length;
+  const positiveRems = owners.filter(o => o.remaining > 0).map(o => o.remaining);
+  const minRemaining = positiveRems.length ? Math.min(...positiveRems) : 0;
+  return { total, ready, minRemaining, owners };
+}
+
+// ============================================================
+// 그리드 렌더 (SURVIVAL / RAID_CD)
+// ============================================================
+function renderGrid(category) {
+  const sectionId = CATEGORY_SECTIONS[category];
+  const grid = document.querySelector(`#${sectionId} .icon-grid`);
+
+  const visible = CATEGORY_SPELL_ORDER[category].filter(id => collectSpellSummary(id).total > 0);
+
+  const existing = new Map();
+  for (const node of grid.children) existing.set(Number(node.dataset.spellId), node);
+
+  const newOrder = [];
+  for (const spellId of visible) {
+    let card = existing.get(spellId);
+    if (!card) card = createSpellCard(spellId);
+    newOrder.push(card);
+    existing.delete(spellId);
+  }
+  for (const stale of existing.values()) stale.remove();
+
+  for (let i = 0; i < newOrder.length; i++) {
+    if (grid.children[i] !== newOrder[i]) {
+      grid.insertBefore(newOrder[i], grid.children[i] ?? null);
+    }
+  }
+
+  const now = Date.now();
+  for (const card of newOrder) {
+    const spellId = Number(card.dataset.spellId);
+    updateSpellCard(card, collectSpellSummary(spellId), SpellData[spellId], now);
   }
 }
 
-function renderHistory() {
-  const ul = document.querySelector("#history ul");
-  while (ul.firstChild) ul.removeChild(ul.firstChild);
+function createSpellCard(spellId) {
+  const spell = SpellData[spellId];
+  const card = document.createElement("div");
+  card.className = "spell-card";
+  card.dataset.spellId = spellId;
 
-  for (const h of state.history) {
-    const li = document.createElement("li");
-    const color = CLASS_COLORS[h.class] ?? "#888";
-    const time = new Date(h.timestamp).toLocaleTimeString("ko-KR", { hour12: false });
+  const icon = document.createElement("div");
+  icon.className = "spell-icon";
 
-    const timeEl = document.createElement("span");
-    timeEl.className = "hist-time";
-    timeEl.textContent = time;
-
-    const playerEl = document.createElement("span");
-    playerEl.className = "hist-player";
-    playerEl.style.color = color;
-    playerEl.textContent = h.player;
-
-    const spellEl = document.createElement("span");
-    spellEl.className = "hist-spell";
-    spellEl.textContent = h.spellName;
-
-    const kindEl = document.createElement("span");
-    kindEl.className = "hist-kind";
-    const kindLabel = h.type === "interrupt"
-      ? `${t("kind_interrupt")}: ${h.targetSpellName ?? "?"}`
-      : h.type === "aura" ? t("kind_aura") : t("kind_cast");
-    kindEl.textContent = kindLabel;
-
-    li.append(timeEl, playerEl, spellEl, kindEl);
-    ul.appendChild(li);
+  const url = iconUrl(spell.iconName);
+  if (url) {
+    const img = document.createElement("img");
+    img.src = url;
+    img.alt = spell.name;
+    img.loading = "lazy";
+    img.referrerPolicy = "no-referrer";
+    img.addEventListener("error", () => {
+      img.remove();
+      const abbr = document.createElement("div");
+      abbr.className = "abbr";
+      abbr.textContent = spell.abbr ?? spell.name.slice(0, 2).toUpperCase();
+      icon.prepend(abbr);
+    }, { once: true });
+    icon.append(img);
+  } else {
+    const abbr = document.createElement("div");
+    abbr.className = "abbr";
+    abbr.textContent = spell.abbr ?? spell.name.slice(0, 2).toUpperCase();
+    icon.append(abbr);
   }
+
+  const sweep = document.createElement("div");
+  sweep.className = "cooldown-sweep";
+
+  const cdText = document.createElement("div");
+  cdText.className = "cooldown-text";
+
+  const countBadge = document.createElement("div");
+  countBadge.className = "count-badge";
+
+  const readyBadge = document.createElement("div");
+  readyBadge.className = "ready-badge";
+  readyBadge.style.display = "none";
+
+  icon.append(sweep, cdText, countBadge, readyBadge);
+
+  const label = document.createElement("div");
+  label.className = "label";
+  label.textContent = spell.name;
+
+  const readyChip = document.createElement("div");
+  readyChip.className = "ready-chip";
+  readyChip.textContent = "READY";
+
+  card.append(icon, label, readyChip);
+
+  card.addEventListener("mouseenter", () => showTooltip(card, spellId));
+  card.addEventListener("mouseleave", hideTooltip);
+  card.addEventListener("mousemove", positionTooltip);
+
+  return card;
+}
+
+function updateSpellCard(card, summary, spell) {
+  const allReady = summary.total > 0 && summary.ready === summary.total;
+  const anyReady = summary.ready > 0;
+  card.classList.toggle("ready", allReady);
+  card.classList.toggle("cooling", !allReady);
+
+  const sweep = card.querySelector(".cooldown-sweep");
+  const cdText = card.querySelector(".cooldown-text");
+  const countBadge = card.querySelector(".count-badge");
+  const readyBadge = card.querySelector(".ready-badge");
+
+  countBadge.textContent = summary.total > 1 ? `×${summary.total}` : "";
+  countBadge.style.display = summary.total > 1 ? "" : "none";
+
+  if (allReady) {
+    cdText.textContent = "";
+    sweep.style.background = "none";
+    readyBadge.style.display = "none";
+  } else {
+    const minRem = summary.minRemaining;
+    const total = spell.cooldown * 1000;
+    const pct = Math.min(100, (minRem / total) * 100);
+    sweep.style.background = `conic-gradient(transparent ${100 - pct}%, rgba(0,0,0,0.7) ${100 - pct}%)`;
+    cdText.textContent = formatTime(minRem);
+    if (anyReady) {
+      readyBadge.textContent = String(summary.ready);
+      readyBadge.style.display = "";
+    } else {
+      readyBadge.style.display = "none";
+    }
+  }
+}
+
+// ============================================================
+// 툴팁
+// ============================================================
+const tooltipEl = () => document.getElementById("tooltip");
+
+function showTooltip(card, spellId) {
+  const spell = SpellData[spellId];
+  const summary = collectSpellSummary(spellId);
+  const tip = tooltipEl();
+  tip.replaceChildren();
+
+  const h4 = document.createElement("h4");
+  h4.textContent = spell.name;
+  tip.append(h4);
+
+  const ul = document.createElement("ul");
+  if (summary.owners.length === 0) {
+    const li = document.createElement("li");
+    li.style.color = "var(--bronze-gray)";
+    li.textContent = t("tooltip_no_players");
+    ul.append(li);
+  } else {
+    const sorted = [...summary.owners].sort((a, b) => a.remaining - b.remaining);
+    for (const o of sorted) {
+      const li = document.createElement("li");
+      const left = document.createElement("div");
+      left.className = "player-side";
+      const dot = document.createElement("span");
+      dot.className = "class-dot";
+      dot.style.background = CLASS_COLORS[o.class] ?? "#888";
+      const name = document.createElement("span");
+      name.className = "player-name";
+      name.style.color = CLASS_COLORS[o.class] ?? "#888";
+      name.textContent = o.player;
+      left.append(dot, name);
+
+      const cd = document.createElement("span");
+      cd.className = "cd-text";
+      if (o.remaining === 0) {
+        cd.classList.add("ready");
+        cd.textContent = "READY";
+      } else {
+        cd.textContent = formatTime(o.remaining);
+      }
+      li.append(left, cd);
+      ul.append(li);
+    }
+  }
+  tip.append(ul);
+  tip.hidden = false;
+}
+
+function positionTooltip(e) {
+  const tip = tooltipEl();
+  if (tip.hidden) return;
+  const margin = 14;
+  const rect = tip.getBoundingClientRect();
+  let x = e.clientX + margin;
+  let y = e.clientY + margin;
+  if (x + rect.width > window.innerWidth - 10) x = e.clientX - rect.width - margin;
+  if (y + rect.height > window.innerHeight - 10) y = e.clientY - rect.height - margin;
+  tip.style.left = `${x}px`;
+  tip.style.top = `${y}px`;
+}
+
+function hideTooltip() {
+  tooltipEl().hidden = true;
+}
+
+// ============================================================
+// 유틸리티 카드 (HEROISM / BATTLEREZ)
+// ============================================================
+function updateUtilityCard(which) {
+  const card = document.getElementById(which);
+  if (!card) return;
+  const status = card.querySelector(".utility-status");
+  const detail = card.querySelector(".utility-detail");
+
+  const category = which === "heroism" ? "HEROISM" : "BATTLEREZ";
+  const spellIds = CATEGORY_SPELL_ORDER[category];
+
+  const owners = [];
+  for (const id of spellIds) {
+    for (const o of collectSpellSummary(id).owners) owners.push(o);
+  }
+
+  if (owners.length === 0) {
+    card.classList.remove("ready", "cooling", "active");
+    card.classList.add("unavailable");
+    status.textContent = "—";
+    detail.replaceChildren(document.createTextNode(
+      which === "heroism" ? t("heroism_no_caster") : t("battlerez_none")
+    ));
+    if (which === "battlerez") {
+      const badge = card.querySelector(".charge-badge");
+      if (badge) badge.textContent = "0";
+    }
+    return;
+  }
+  card.classList.remove("unavailable");
+
+  if (which === "heroism") {
+    const readyOwners = owners.filter(o => o.remaining === 0);
+    if (readyOwners.length > 0) {
+      card.classList.add("ready");
+      card.classList.remove("cooling");
+      status.textContent = t("heroism_ready");
+      const items = readyOwners.map(playerChip);
+      items.push(noteEl(t("heroism_consume_note")));
+      detail.replaceChildren(...items);
+    } else {
+      card.classList.remove("ready");
+      card.classList.add("cooling");
+      const minRem = Math.min(...owners.map(o => o.remaining));
+      status.textContent = t("heroism_cooldown");
+      const time = document.createElement("span");
+      time.className = "next-time";
+      time.textContent = formatTime(minRem);
+      detail.replaceChildren(time, noteEl(t("heroism_consume_note")));
+    }
+  } else {
+    const charges = owners.filter(o => o.remaining === 0).length;
+    const badge = card.querySelector(".charge-badge");
+    if (badge) badge.textContent = String(charges);
+
+    if (charges > 0) {
+      card.classList.add("active");
+      card.classList.remove("cooling");
+      status.textContent = `${charges} ${t("battlerez_charges")}`;
+      const cooldownOwners = owners.filter(o => o.remaining > 0);
+      if (cooldownOwners.length > 0) {
+        const minRem = Math.min(...cooldownOwners.map(o => o.remaining));
+        const wrap = document.createElement("span");
+        wrap.append(`${t("battlerez_next")} `);
+        const time = document.createElement("span");
+        time.className = "next-time";
+        time.textContent = formatTime(minRem);
+        wrap.append(time);
+        detail.replaceChildren(wrap);
+      } else {
+        detail.replaceChildren(document.createTextNode("all available"));
+      }
+    } else {
+      card.classList.add("cooling");
+      card.classList.remove("active");
+      const minRem = Math.min(...owners.map(o => o.remaining));
+      status.textContent = t("heroism_cooldown");
+      const wrap = document.createElement("span");
+      wrap.append(`${t("battlerez_next")} `);
+      const time = document.createElement("span");
+      time.className = "next-time";
+      time.textContent = formatTime(minRem);
+      wrap.append(time);
+      detail.replaceChildren(wrap);
+    }
+  }
+}
+
+function playerChip(o) {
+  const chip = document.createElement("span");
+  chip.className = "player-chip";
+  const dot = document.createElement("span");
+  dot.className = "class-dot";
+  dot.style.background = CLASS_COLORS[o.class] ?? "#888";
+  const name = document.createElement("span");
+  name.style.color = CLASS_COLORS[o.class] ?? "#888";
+  name.textContent = o.player;
+  chip.append(dot, name);
+  return chip;
+}
+
+function noteEl(text) {
+  const el = document.createElement("span");
+  el.className = "note";
+  el.textContent = `· ${text}`;
+  return el;
+}
+
+// ============================================================
+// DEATH LOG
+// ============================================================
+function renderDeathLog() {
+  const list = document.querySelector("#deathlog .death-list");
+  const empty = document.querySelector("#deathlog .grid-empty");
+  list.replaceChildren();
+
+  if (state.deaths.length === 0) {
+    empty.style.display = "block";
+    return;
+  }
+  empty.style.display = "none";
+
+  const sorted = [...state.deaths].sort((a, b) => a.timestamp - b.timestamp);
+  for (const death of sorted) list.append(createDeathRow(death));
+}
+
+function deathKey(d) { return `${d.timestamp}:${d.player}`; }
+
+function makeSkullSvg() {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("class", "death-skull");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "currentColor");
+  const path = document.createElementNS(SVG_NS, "path");
+  path.setAttribute("d", SKULL_PATH);
+  svg.append(path);
+  return svg;
+}
+
+function createDeathRow(death) {
+  const row = document.createElement("div");
+  row.className = "death-row";
+  const key = deathKey(death);
+  if (expandedDeaths.has(key)) row.classList.add("expanded");
+
+  const header = document.createElement("div");
+  header.className = "death-header";
+
+  const chevron = document.createElement("span");
+  chevron.className = "death-chevron";
+  chevron.textContent = "▶";
+
+  const time = document.createElement("span");
+  time.className = "death-time";
+  time.textContent = new Date(death.timestamp).toLocaleTimeString("ko-KR", { hour12: false });
+
+  const nameWrap = document.createElement("div");
+  nameWrap.className = "death-name";
+  nameWrap.append(makeSkullSvg());
+  const name = document.createElement("span");
+  name.textContent = death.player;
+  name.style.color = CLASS_COLORS[death.class] ?? "var(--cream)";
+  nameWrap.append(name);
+
+  const cause = document.createElement("span");
+  cause.className = "death-cause";
+  if (death.damages.length > 0) {
+    const top = death.damages[0];
+    cause.textContent = `${top.spell} · ${formatNumber(top.amount)}`;
+  } else {
+    cause.textContent = "—";
+  }
+
+  header.append(chevron, time, nameWrap, cause);
+  header.addEventListener("click", () => {
+    if (expandedDeaths.has(key)) expandedDeaths.delete(key);
+    else expandedDeaths.add(key);
+    row.classList.toggle("expanded");
+  });
+
+  const detail = document.createElement("div");
+  detail.className = "death-detail";
+
+  const h5 = document.createElement("h5");
+  h5.textContent = t("deathlog_damage_taken");
+  detail.append(h5);
+
+  if (death.damages.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "damage-empty";
+    empty.textContent = "—";
+    detail.append(empty);
+  } else {
+    const ul = document.createElement("ul");
+    ul.className = "damage-list";
+    for (const d of death.damages) {
+      const li = document.createElement("li");
+      li.className = "damage-row";
+
+      const ts = document.createElement("span");
+      ts.className = "ts";
+      ts.textContent = new Date(d.ts).toLocaleTimeString("ko-KR", { hour12: false });
+
+      const amt = document.createElement("span");
+      amt.className = "amt";
+      amt.textContent = `-${formatNumber(d.amount)}`;
+
+      const src = document.createElement("span");
+      src.className = "src";
+      src.textContent = d.source;
+
+      const spell = document.createElement("span");
+      spell.className = "spell";
+      spell.textContent = d.spell;
+
+      li.append(ts, amt, src, spell);
+      ul.append(li);
+    }
+    detail.append(ul);
+  }
+
+  row.append(header, detail);
+  return row;
 }
 
 // ============================================================
@@ -448,10 +826,17 @@ function formatTime(remainingMs) {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+function formatNumber(n) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+  return n.toLocaleString("en-US");
+}
+
 function setStatus(text, kind = "idle") {
   const el = document.getElementById("status");
-  el.textContent = text;
-  el.className = `status-${kind}`;
+  const txtEl = document.getElementById("status-text");
+  txtEl.textContent = text;
+  el.className = `status-pill status-${kind}`;
 }
 
 function showError(msg) {
@@ -459,7 +844,7 @@ function showError(msg) {
 }
 
 // ============================================================
-// IndexedDB — directory handle 영속화
+// IndexedDB
 // ============================================================
 function openIDB() {
   return new Promise((resolve, reject) => {
@@ -493,7 +878,6 @@ async function loadHandleFromIDB() {
   return handle;
 }
 
-// ============================================================
 main().catch(e => {
   console.error(e);
   showError(`${t("status_init_fail")}: ${e.message}`);

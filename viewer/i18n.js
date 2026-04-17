@@ -1,6 +1,7 @@
 const translations = {
   ko: {
     title: "PartyCD Viewer",
+    subtitle: "공대 생존기 추적",
     status_idle: "대기 중",
     status_connected: "연결됨",
     status_searching: "로그 파일 찾는 중",
@@ -20,24 +21,36 @@ const translations = {
     setup_title: "시작하기",
     setup_step1: "WoW에서 /combatlog 을 입력하여 전투 로그를 켭니다.",
     setup_step2: "아래 버튼을 눌러 World of Warcraft/_retail_/Logs 폴더를 선택합니다.",
-    setup_step3: "파티원이 추적 스펠을 시전하면 자동으로 바가 등장합니다.",
+    setup_step3: "파티원이 추적 스펠을 시전하면 자동으로 표시됩니다.",
     setup_hint: "Chrome / Edge / Arc 등 Chromium 기반 브라우저만 지원합니다.",
 
-    section_survival: "외부 생존기",
+    section_survival: "생존기",
     section_raidcd: "공대 쿨",
     section_heroism: "영웅심",
     section_battlerez: "전투 부활",
-    section_history: "최근 캐스트",
+    section_deathlog: "사망 로그",
 
-    empty: "아직 감지된 캐스트가 없습니다.",
+    deathlog_clear_note: "전투 시작 시 초기화",
+    deathlog_damage_taken: "받은 피해 — 마지막 10초",
+    deathlog_empty: "사망 기록 없음",
+
+    heroism_ready: "사용 가능",
+    heroism_cooldown: "다음 사용까지",
+    heroism_no_caster: "공대에 영웅심 시전자가 없습니다",
+    heroism_consume_note: "한 명이 시전하면 모두 소모됨",
+
+    battlerez_charges: "차지",
+    battlerez_next: "다음 차지",
+    battlerez_none: "공대에 전투부활 시전자가 없습니다",
+
+    grid_empty: "감지된 스펠 없음",
     ready: "READY",
 
-    kind_cast: "시전",
-    kind_aura: "버프",
-    kind_interrupt: "끊음",
+    tooltip_no_players: "보유 플레이어 없음",
   },
   en: {
     title: "PartyCD Viewer",
+    subtitle: "Raid CD Tracker",
     status_idle: "Idle",
     status_connected: "Connected",
     status_searching: "Searching for log file",
@@ -57,21 +70,32 @@ const translations = {
     setup_title: "Get Started",
     setup_step1: "Type /combatlog in WoW to enable combat logging.",
     setup_step2: "Click the button below to select your World of Warcraft/_retail_/Logs folder.",
-    setup_step3: "Bars will appear automatically when party members cast tracked spells.",
+    setup_step3: "Tracked spells will appear automatically when raid members cast them.",
     setup_hint: "Only Chromium-based browsers are supported (Chrome, Edge, Arc).",
 
-    section_survival: "External CDs",
-    section_raidcd: "Raid CDs",
-    section_heroism: "Heroism",
-    section_battlerez: "Battle Rez",
-    section_history: "Recent Casts",
+    section_survival: "SURVIVAL",
+    section_raidcd: "RAID CD",
+    section_heroism: "HEROISM",
+    section_battlerez: "BATTLE REZ",
+    section_deathlog: "DEATH LOG",
 
-    empty: "No casts detected yet.",
+    deathlog_clear_note: "cleared on encounter start",
+    deathlog_damage_taken: "DAMAGE TAKEN — last 10 seconds",
+    deathlog_empty: "no deaths recorded",
+
+    heroism_ready: "READY",
+    heroism_cooldown: "NEXT",
+    heroism_no_caster: "no heroism caster in raid",
+    heroism_consume_note: "any one will consume all",
+
+    battlerez_charges: "charges",
+    battlerez_next: "next charge",
+    battlerez_none: "no battle rez caster in raid",
+
+    grid_empty: "no spells detected",
     ready: "READY",
 
-    kind_cast: "Cast",
-    kind_aura: "Buff",
-    kind_interrupt: "Interrupted",
+    tooltip_no_players: "no players",
   },
 };
 
