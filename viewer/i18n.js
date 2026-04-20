@@ -1,6 +1,6 @@
 const translations = {
   ko: {
-    title: "PartyCD Viewer",
+    title: "RaidCD Viewer",
     subtitle: "공대 생존기 추적",
     status_idle: "대기 중",
     status_connected: "연결됨",
@@ -56,7 +56,7 @@ const translations = {
     tooltip_no_players: "보유 플레이어 없음",
   },
   en: {
-    title: "PartyCD Viewer",
+    title: "RaidCD Viewer",
     subtitle: "Raid CD Tracker",
     status_idle: "Idle",
     status_connected: "Connected",
@@ -118,7 +118,7 @@ const LOCALE_NAMES = {
   en: "English",
 };
 
-const STORAGE_KEY = "partycd-locale";
+const STORAGE_KEY = "raidcd-locale";
 let currentLocale = "ko";
 
 export function getAvailableLocales() {

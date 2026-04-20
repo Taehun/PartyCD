@@ -19,10 +19,10 @@ const MAX_RESIDUAL_BYTES = 16 * 1024 * 1024;
 // 로그 롤오버 / WoW flush 시점의 파일 락 / AV 실시간 검사 등으로 간헐적 NotReadableError가 날 수 있음.
 const TRANSIENT_WARN_THRESHOLD = 5;    // 연속 ~2.5s까진 무음
 const TRANSIENT_ALERT_THRESHOLD = 10;  // 연속 ~5s 넘으면 err로 표시
-const IDB_NAME = "partycd-viewer";
+const IDB_NAME = "raidcd-viewer";
 const IDB_STORE = "handles";
 const IDB_KEY = "logs-dir";
-const OVERLAY_STORAGE_KEY = "partycd-overlay";
+const OVERLAY_STORAGE_KEY = "raidcd-overlay";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const SKULL_PATH = "M12 2a8 8 0 0 0-8 8c0 3.4 2.1 6.3 5 7.5V20a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-2.5c2.9-1.2 5-4.1 5-7.5a8 8 0 0 0-8-8zM9 11a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm6 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z";

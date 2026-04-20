@@ -1,5 +1,4 @@
 // 추적 스펠 데이터 (WoW 12.0.1 기준)
-// 스펠 추가/수정 시 PartyCD/SpellData.lua 와 양쪽 동시 수정 필요
 // iconName: Wowhead CDN 파일 이름 (https://wow.zamimg.com/images/wow/icons/large/{name}.jpg)
 // abbr: 아이콘 로딩 실패 시 폴백용 2-3자 약어
 // nameKo: WoW KR 클라이언트 공식 스펠명 (UI 한국어 토글 시 사용)
