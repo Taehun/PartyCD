@@ -17,12 +17,17 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+# Node 20 Action 런타임 지원 종료(2026-06-02) 대비 Node 24로 선제 전환.
+# 개별 Action이 Node 24 지원 major로 올라오면 이 env는 제거 가능.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "20"
       - name: Run parser tests
@@ -36,7 +41,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

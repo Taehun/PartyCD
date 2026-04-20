@@ -62,6 +62,7 @@ async function main() {
   setLocale(detectLocale());
   initLangToggle();
   initOverlayToggle();
+  cleanupLegacyIDB();
 
   if (new URLSearchParams(location.search).get("demo") === "1") {
     loadDemoState();
@@ -1152,6 +1153,22 @@ function showError(msg) {
 // ============================================================
 // IndexedDB
 // ============================================================
+// PartyCD 시절의 레거시 DB를 한 번만 정리. 리네임 이후 사용자 브라우저에 남아있는
+// `partycd-viewer` DB를 비동기로 삭제하고 localStorage 센티널로 재실행 방지.
+function cleanupLegacyIDB() {
+  const FLAG = "raidcd-legacy-idb-cleaned";
+  if (localStorage.getItem(FLAG) === "1") return;
+  try {
+    const req = indexedDB.deleteDatabase("partycd-viewer");
+    const done = () => localStorage.setItem(FLAG, "1");
+    req.onsuccess = done;
+    req.onerror = done;     // 권한/락 실패여도 다음엔 재시도 안 함 (삭제 필요성 낮은 흔적 데이터)
+    req.onblocked = done;
+  } catch {
+    localStorage.setItem(FLAG, "1");
+  }
+}
+
 function openIDB() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(IDB_NAME, 1);
