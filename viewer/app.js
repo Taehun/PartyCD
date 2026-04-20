@@ -11,6 +11,10 @@ const DAMAGE_BUFFER_MS = 10_000;        // 사망 직전 N ms 데미지 보존
 const DAMAGE_BUFFER_TRIM_MS = 30_000;   // 메모리 보호용 cutoff
 const DEATH_LIMIT = 30;
 
+// 손상/비정상 로그 방어선. 실제 콤뱃 로그 라인은 <2KB라 정상 tail 상태에서는 절대 도달하지 않음.
+// \n 없는 거대 페이로드가 들어오면 throw하여 onPollError의 transient 재시도로 흘려보낸다.
+const MAX_RESIDUAL_BYTES = 16 * 1024 * 1024;
+
 // Windows + File System Access API transient 에러 허용치.
 // 로그 롤오버 / WoW flush 시점의 파일 락 / AV 실시간 검사 등으로 간헐적 NotReadableError가 날 수 있음.
 const TRANSIENT_WARN_THRESHOLD = 5;    // 연속 ~2.5s까진 무음
@@ -244,29 +248,56 @@ async function pollOnce(dirHandle) {
   }
   if (file.size === readPosition) return;
 
-  const chunk = await file.slice(readPosition, file.size).text();
-  readPosition = file.size;
+  const sliceStart = readPosition;
+  const sliceEnd = file.size;
 
-  const combined = residualBuffer + chunk;
-  const lastNewline = combined.lastIndexOf("\n");
-  if (lastNewline < 0) {
-    residualBuffer = combined;
-    return;
-  }
-
-  const complete = combined.slice(0, lastNewline);
-  residualBuffer = combined.slice(lastNewline + 1);
-
-  const lines = complete.split(/\r?\n/);
+  // 대용량 로그(수백 MB)에서 OOM이 나지 않도록 Blob.stream() + TextDecoderStream으로
+  // 청크 단위(~64KB)로 흘려 받아, 도착하는 즉시 완성된 줄만 parseLine에 공급.
+  // pending / dirty / readPosition은 스트림 전체 소비에 성공한 뒤에만 커밋한다.
+  let pending = residualBuffer;
   let dirty = false;
-  for (const line of lines) {
-    try {
-      const event = parseLine(line);
-      if (event && applyEvent(event)) dirty = true;
-    } catch (e) {
-      console.warn("parse failed:", line, e);
+
+  const reader = file
+    .slice(sliceStart, sliceEnd)
+    .stream()
+    .pipeThrough(new TextDecoderStream("utf-8"))
+    .getReader();
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      pending += value;
+
+      let start = 0;
+      let nl;
+      while ((nl = pending.indexOf("\n", start)) !== -1) {
+        let line = pending.slice(start, nl);
+        if (line.length && line.charCodeAt(line.length - 1) === 13) {
+          line = line.slice(0, -1); // CRLF의 \r 제거
+        }
+        start = nl + 1;
+        if (line.length === 0) continue;
+        try {
+          const event = parseLine(line);
+          if (event && applyEvent(event)) dirty = true;
+        } catch (e) {
+          console.warn("parse failed:", line, e);
+        }
+      }
+      if (start > 0) pending = pending.slice(start);
+
+      if (pending.length > MAX_RESIDUAL_BYTES) {
+        throw new Error(`residual buffer exceeded ${MAX_RESIDUAL_BYTES} bytes — malformed log?`);
+      }
     }
+  } finally {
+    try { reader.releaseLock(); } catch {}
   }
+
+  residualBuffer = pending;
+  readPosition = sliceEnd;
+
   if (dirty) renderFull();
 }
 
@@ -357,6 +388,7 @@ function applyEvent(event) {
     });
     const cutoff = event.timestamp - DAMAGE_BUFFER_TRIM_MS;
     while (buf.length && buf[0].ts < cutoff) buf.shift();
+    if (buf.length === 0) delete state.damageBuffer[event.target];
     return false;
   }
 
