@@ -1,7 +1,7 @@
 const translations = {
   ko: {
     title: "RaidCD Viewer",
-    subtitle: "공대 생존기 추적",
+    subtitle: "공격대 쿨다운 트래커",
     status_idle: "대기 중",
     status_connected: "연결됨",
     status_waiting_log: "대기 중 — WoW에서 /combatlog 을 켜주세요",
