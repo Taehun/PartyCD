@@ -51,6 +51,11 @@ const state = {
   damageBuffer: {},
   encounter: null,
   currentFileName: null,
+  // COMBATANT_INFO 는 GUID/specID 만 주고 이름은 안 준다. 다른 이벤트의 sourceGUID/destGUID
+  // 쌍으로 GUID→name 매핑을 채워, combatant_info 가 들어오면 그 즉시(또는 매핑이 채워지는
+  // 첫 이벤트 시점에) 빈 cooldowns 로 player 를 등록 → 그리드에 직업 전체 쿨다운이 ready 표시.
+  guidToName: {},
+  pendingRoster: [],   // [{ guid, class }]
 };
 
 const expandedDeaths = new Set();
@@ -353,16 +358,61 @@ async function findLatestLog(dirHandle) {
 // ============================================================
 // 이벤트 적용
 // ============================================================
+function registerPlayer(name, cls) {
+  const existing = state.players[name];
+  if (existing) {
+    existing.class = cls;            // 이름 충돌 시 최신 정보 우선, cooldowns 는 보존
+  } else {
+    state.players[name] = { class: cls, cooldowns: {} };
+  }
+}
+
+function drainPendingRoster() {
+  if (!state.pendingRoster.length) return false;
+  const remaining = [];
+  let added = false;
+  for (const p of state.pendingRoster) {
+    const name = state.guidToName[p.guid];
+    if (name) {
+      registerPlayer(name, p.class);
+      added = true;
+    } else {
+      remaining.push(p);
+    }
+  }
+  state.pendingRoster = remaining;
+  return added;
+}
+
 function applyEvent(event) {
+  // 모든 이벤트에서 GUID→name 매핑을 갱신해 pending roster 의 이름을 채울 수 있게 한다.
+  if (event.playerGuid && event.player) {
+    state.guidToName[event.playerGuid] = event.player;
+  }
+  if (event.targetGuid && event.target) {
+    state.guidToName[event.targetGuid] = event.target;
+  }
+
   if (event.type === "encounter_start") {
     state.encounter = { id: event.encounterId, name: event.encounterName, startedAt: event.timestamp };
     state.deaths = [];
     state.damageBuffer = {};
     expandedDeaths.clear();
+    drainPendingRoster();
     return true;
   }
   if (event.type === "encounter_end") {
     state.encounter = null;
+    return true;
+  }
+
+  if (event.type === "combatant_info") {
+    const name = state.guidToName[event.guid];
+    if (name) {
+      registerPlayer(name, event.class);
+    } else {
+      state.pendingRoster.push({ guid: event.guid, class: event.class });
+    }
     return true;
   }
 
@@ -375,6 +425,7 @@ function applyEvent(event) {
       castAt: event.timestamp,
       expiresAt: event.timestamp + spell.cooldown * 1000,
     };
+    drainPendingRoster();
     return true;
   }
 
@@ -390,7 +441,7 @@ function applyEvent(event) {
     const cutoff = event.timestamp - DAMAGE_BUFFER_TRIM_MS;
     while (buf.length && buf[0].ts < cutoff) buf.shift();
     if (buf.length === 0) delete state.damageBuffer[event.target];
-    return false;
+    return drainPendingRoster();    // 그 외엔 데미지 자체는 그리드에 영향 없음
   }
 
   if (event.type === "death") {
@@ -411,6 +462,7 @@ function applyEvent(event) {
     });
     state.deaths.sort((a, b) => a.timestamp - b.timestamp);
     while (state.deaths.length > DEATH_LIMIT) state.deaths.shift();
+    drainPendingRoster();
     return true;
   }
 

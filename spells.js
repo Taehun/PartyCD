@@ -71,6 +71,24 @@ export const CLASS_COLORS = {
   WARLOCK:     "#8788EE",
 };
 
+// COMBATANT_INFO 의 specID → SpellData[*].class 키와 동일한 className 매핑.
+// 새 spec 출시 시 한 줄만 추가하면 됨.
+export const SpecToClass = {
+  71:   "WARRIOR",     72:   "WARRIOR",     73:   "WARRIOR",
+  65:   "PALADIN",     66:   "PALADIN",     70:   "PALADIN",
+  253:  "HUNTER",      254:  "HUNTER",      255:  "HUNTER",
+  259:  "ROGUE",       260:  "ROGUE",       261:  "ROGUE",
+  256:  "PRIEST",      257:  "PRIEST",      258:  "PRIEST",
+  250:  "DEATHKNIGHT", 251:  "DEATHKNIGHT", 252:  "DEATHKNIGHT",
+  262:  "SHAMAN",      263:  "SHAMAN",      264:  "SHAMAN",
+  62:   "MAGE",        63:   "MAGE",        64:   "MAGE",
+  265:  "WARLOCK",     266:  "WARLOCK",     267:  "WARLOCK",
+  268:  "MONK",        269:  "MONK",        270:  "MONK",
+  102:  "DRUID",       103:  "DRUID",       104:  "DRUID",       105: "DRUID",
+  577:  "DEMONHUNTER", 581:  "DEMONHUNTER",
+  1467: "EVOKER",      1468: "EVOKER",      1473: "EVOKER",
+};
+
 // Wowhead 아이콘 CDN 베이스
 export const ICON_CDN = "https://wow.zamimg.com/images/wow/icons/large";
 

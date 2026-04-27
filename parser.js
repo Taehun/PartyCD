@@ -2,7 +2,7 @@
 // 입력: WoWCombatLog-*.txt 한 줄
 // 출력: 관심 이벤트면 normalized object, 아니면 null
 
-import { SpellData, AuraToSpell } from "./spells.js";
+import { SpellData, AuraToSpell, SpecToClass } from "./spells.js";
 
 // COMBATLOG_OBJECT_AFFILIATION_*
 const AFFIL_MINE  = 0x1;
@@ -17,8 +17,10 @@ const TYPE_PLAYER = 0x400;
 // 0:sourceGUID 1:sourceName 2:sourceFlags 3:sourceRaidFlags
 // 4:destGUID   5:destName   6:destFlags   7:destRaidFlags
 // 8:spellId    9:spellName  10:spellSchool
+const IDX_SOURCE_GUID = 0;
 const IDX_SOURCE_NAME = 1;
 const IDX_SOURCE_FLAGS = 2;
+const IDX_DEST_GUID = 4;
 const IDX_DEST_NAME = 5;
 const IDX_DEST_FLAGS = 6;
 const IDX_SPELL_ID = 8;
@@ -43,6 +45,7 @@ const NON_SPELL_EVENTS = new Set([
   "UNIT_DIED",
   "ENCOUNTER_START",
   "ENCOUNTER_END",
+  "COMBATANT_INFO",
   "SWING_DAMAGE",
   "SWING_DAMAGE_LANDED",
   "ENVIRONMENTAL_DAMAGE",
@@ -92,6 +95,19 @@ export function parseLine(line) {
     };
   }
 
+  if (eventName === "COMBATANT_INFO") {
+    // ENCOUNTER_START 직후 공대원마다 한 줄. 11.x 기준 필드 0~23은 모두 단순 GUID/숫자라
+    // splitCsv 결과로 안전히 추출 가능. 24 이후는 (talents)/[gear] 등 nested 콤마라 무시.
+    // 0:GUID 1:faction 2~22:stats 23:specID
+    if (fields.length < 24) return null;
+    const guid = fields[0];
+    if (!guid) return null;
+    const specId = Number(fields[23]);
+    const cls = SpecToClass[specId];
+    if (!cls) return null;
+    return { type: "combatant_info", timestamp, guid, specId, class: cls };
+  }
+
   if (eventName === "UNIT_DIED") {
     // UNIT_DIED,sourceGUID,sourceName,sourceFlags,sourceRaidFlags,destGUID,destName,destFlags,destRaidFlags[,recapID]
     const destFlags = parseHex(fields[IDX_DEST_FLAGS]);
@@ -103,6 +119,7 @@ export function parseLine(line) {
       type: "death",
       timestamp,
       player: stripRealm(destName),
+      playerGuid: fields[IDX_DEST_GUID],
     };
   }
 
@@ -118,6 +135,7 @@ export function parseLine(line) {
       type: "damage",
       timestamp,
       target: stripRealm(destName),
+      targetGuid: fields[IDX_DEST_GUID],
       sourceName: stripRealm(fields[IDX_SOURCE_NAME] ?? "") || "Environment",
       spellName: fields[IDX_SPELL_NAME] ?? "Instakill",
       amount: 0,
@@ -139,6 +157,7 @@ export function parseLine(line) {
       type: "damage",
       timestamp,
       target: stripRealm(destName),
+      targetGuid: fields[IDX_DEST_GUID],
       sourceName: stripRealm(fields[IDX_SOURCE_NAME] ?? "") || "Melee",
       spellName: "Melee",
       amount: dmg.amount,
@@ -161,6 +180,7 @@ export function parseLine(line) {
       type: "damage",
       timestamp,
       target: stripRealm(destName),
+      targetGuid: fields[IDX_DEST_GUID],
       sourceName: prettyEnvironmentalType(envType),
       spellName: prettyEnvironmentalType(envType),
       amount: dmg.amount,
@@ -186,6 +206,7 @@ export function parseLine(line) {
       type: "damage",
       timestamp,
       target: stripRealm(destName),
+      targetGuid: fields[IDX_DEST_GUID],
       sourceName: stripRealm(rawSourceName ?? ""),
       spellName: fields[IDX_SPELL_NAME] ?? "",
       amount: dmg.amount,
@@ -222,6 +243,7 @@ export function parseLine(line) {
   return {
     type,
     player,
+    playerGuid: fields[IDX_SOURCE_GUID],
     class: spell.class,
     spellId,
     timestamp,

@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseLine, splitCsv, parseTimestamp } from "../parser.js";
+import { SpecToClass } from "../spells.js";
 
 // -------- splitCsv --------
 test("splitCsv: basic", () => {
@@ -355,6 +356,74 @@ test("Windows CRLF: SPELL_CAST_SUCCESS 라인 끝에 \\r 가 있어도 정상 �
   const ev = parseLine(line);
   assert.ok(ev);
   assert.equal(ev.type, "cast");
+});
+
+// ===== COMBATANT_INFO (공대 명단) =====
+
+// 22개의 stat 필드(2~22 인덱스)를 채워서 24번째 필드가 specID 가 되도록 만든다.
+function buildCombatantInfo(guid, specId, opts = {}) {
+  const stats = Array(21).fill("0").join(",");                // fields 2~22
+  const tail = opts.tail ?? "(123,456,789),(0,0,0,0),[],[],[],()";
+  return `4/11 20:13:42.123  COMBATANT_INFO,${guid},0,${stats},${specId},${tail}`;
+}
+
+test("COMBATANT_INFO: PRIEST(Discipline) → class=PRIEST", () => {
+  const ev = parseLine(buildCombatantInfo("Player-1-AAAA", 256));
+  assert.ok(ev);
+  assert.equal(ev.type, "combatant_info");
+  assert.equal(ev.guid, "Player-1-AAAA");
+  assert.equal(ev.specId, 256);
+  assert.equal(ev.class, "PRIEST");
+});
+
+test("COMBATANT_INFO: 알 수 없는 specID → drop", () => {
+  assert.equal(parseLine(buildCombatantInfo("Player-1-BBBB", 999999)), null);
+});
+
+test("COMBATANT_INFO: GUID 누락 → drop", () => {
+  assert.equal(parseLine(buildCombatantInfo("", 256)), null);
+});
+
+test("COMBATANT_INFO: 모든 매핑된 specID 가 알려진 클래스로 해석됨", () => {
+  for (const [specIdStr, expectedClass] of Object.entries(SpecToClass)) {
+    const ev = parseLine(buildCombatantInfo("Player-1-XXX", Number(specIdStr)));
+    assert.ok(ev, `specID ${specIdStr} 가 파싱되어야 함`);
+    assert.equal(ev.class, expectedClass, `specID ${specIdStr} → ${expectedClass}`);
+    assert.equal(ev.specId, Number(specIdStr));
+  }
+});
+
+test("COMBATANT_INFO: 인카운터 시작 직후 흐름 — encounter_start 다음에 와도 영향 없음", () => {
+  const a = parseLine(`4/11 20:13:42.123  ENCOUNTER_START,2741,"Broodtwister Ovi'nax",16,20,2657`);
+  const b = parseLine(buildCombatantInfo("Player-1-CCCC", 73));
+  assert.equal(a.type, "encounter_start");
+  assert.equal(b.type, "combatant_info");
+  assert.equal(b.class, "WARRIOR");
+});
+
+// ===== GUID 동봉 회귀 (app.js GUID→name 매핑 풀의 신뢰성) =====
+
+test("SPELL_CAST_SUCCESS 출력에 playerGuid 동봉", () => {
+  const ev = parseLine(buildLine("SPELL_CAST_SUCCESS", { spellId: 33206, spellName: "Pain Suppression" }));
+  assert.equal(ev.playerGuid, "Player-1-0001");
+});
+
+test("SPELL_AURA_APPLIED 출력에 playerGuid 동봉", () => {
+  const ev = parseLine(buildLine("SPELL_AURA_APPLIED", { spellId: 47788, spellName: "Guardian Spirit", extra: "BUFF" }));
+  assert.equal(ev.playerGuid, "Player-1-0001");
+});
+
+test("UNIT_DIED 출력에 playerGuid 동봉", () => {
+  const line = `4/11 20:13:42.123  UNIT_DIED,0000000000000000,nil,0x0,0x0,Player-1-0042,"Holy신부-Azshara",0x512,0x0`;
+  const ev = parseLine(line);
+  assert.equal(ev.playerGuid, "Player-1-0042");
+});
+
+test("SPELL_DAMAGE 출력에 targetGuid 동봉", () => {
+  const advanced = "Creature-0-1234,0000000000000000,2000000,2000000,1000,1000,1000,1000,0,0,0,0,0,0,0.0,0.0,0";
+  const line = `4/11 20:13:42.123  SPELL_DAMAGE,Creature-0-1234,"Raszageth",0x10a48,0x0,Player-1-0099,"Holy신부-Azshara",0x512,0x0,381466,"Lightning Breath",0x8,${advanced},2847193,2847193,0,1,0,nil,nil,nil`;
+  const ev = parseLine(line);
+  assert.equal(ev.targetGuid, "Player-1-0099");
 });
 
 // ===== 기타 =====
